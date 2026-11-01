@@ -13,7 +13,7 @@
   "proactive": {
     "enabled": true,
     "quietHours": [
-      "00:30-08:00"
+      "23:00-09:00"
     ],
     "dailyMax": 3,
     "minGapMinutes": 120,

@@ -5,7 +5,7 @@
 说什么，说出来就是普通的一条消息，回复也会正常进入对话。
 
 ```
-DSH schedule（0 8-22/2 * * *，Asia/Shanghai）
+DSH schedule（0 9-21/2 * * *，Asia/Shanghai；安静时段 23:00-09:00）
         │  投递一条内部提示
         ▼
    agent 醒来 → whalefall heartbeat --json
@@ -47,12 +47,30 @@ DSH schedule（0 8-22/2 * * *，Asia/Shanghai）
 
 ```json
 "proactive": {
+  "quietHours": ["23:00-09:00"],
+  "dailyMax": 3,
+  "minGapMinutes": 120,
   "followUp": { "followUpMinutes": 180, "maxFollowUps": 1, "minSilentMinutes": 90 }
 }
 ```
+
+| 参数 | 值 | 意思 |
+| --- | --- | --- |
+| `minGapMinutes` | 120 | 两次主动之间至少隔 2 小时 |
+| `dailyMax` | 3 | 一天最多主动 3 次 |
+| `followUpMinutes` | 180 | 上一条没人回，隔 3 小时才允许追 |
+| `maxFollowUps` | 1 | 同一条线最多追一次 |
+| `minSilentMinutes` | 90 | 想开新话题，老大得先安静 90 分钟 |
 
 ## 已知的坑
 
 - QQ 插件 `showToolResults` 默认关，但**工具报错一定会发给用户**，所以心跳里的命令必须能跑通；
 - 流式只在回复某条消息时启用；主动消息没有 `msgId`，走整段发送，正文里多一句解释就会原样发出去；
 - DSH schedule 归属某个会话，这个心跳挂在本会话上，换会话要重新建。
+
+## 改配置会打断正在跑的那一轮
+
+`cordis.patch.yml` 是 QQ 插件的配置，写它会触发插件热重载：旧实例 `disposeAll()`
+会把所有会话的 agent `cancel({kind:'user'})` —— 包括正在说话的那一轮。
+所以同步人格（`scripts/sync-qq-persona.mjs`）要放在本轮收尾做，
+否则会看到「说到一半突然没了」。
