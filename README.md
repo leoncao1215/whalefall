@@ -13,6 +13,7 @@
 - **时间桶**：按**用户时区**的日历切 day/week/month/year，不是 UTC。
 - **分层摘要**：`summaries` 按 `(level, bucket, prompt_version)` 唯一，可懒生成、可重算、旧版本保留。
 - **摘要链路**：`plan → summarizer → 写库`，摘要器可以是**任何命令**（读 stdin JSON、写 stdout 文本/JSON），先用 mock 也能跑通。
+- **查询计划**：自然语言问题 → 时间窗 / 实体 / 词项（2–3 字滑窗）→ 召回 + JS 重排；`whalefall ask "..."` 可直接用。
 - **上下文装配**：`buildContext()` 按预算拼「命中 → 摘要 → 最近」，每块带 id，超预算宁可少给。
 - **人格包**：`identity.md` + `policy.json` + `examples.jsonl`，可渲染成系统提示词；示例是大肥鱼本人。
 - **系统提示装配**：人格 + 记忆规则 + `<memory>` 数据块，按预算裁剪；记忆明确标成数据而不是指令。
@@ -35,6 +36,7 @@ npm test                    # 全部单测
 
 node src/cli.mjs add --title "午饭" --body "猪脚饭，好吃" --tz Asia/Shanghai
 node src/cli.mjs add --title "和小鲸鱼聊天" --body "聊到了记忆架构" --actor 小鲸鱼
+node src/cli.mjs ask "我上次吃猪脚饭觉得怎么样"
 node src/cli.mjs search 猪脚饭
 node src/cli.mjs search 小鲸鱼 --entity 小鲸鱼
 node src/cli.mjs timeline 2026-11-01
@@ -141,6 +143,7 @@ src/forget.mjs     删除与派生摘要标脏
 src/tick.mjs       主动心跳：闸门 → 生成 → 落库
 src/mcp.mjs        MCP stdio server
 src/gateway.mjs    桌宠网关（HTTP + SSE）
+src/query.mjs      自然语言 → 检索计划
 src/eval.mjs       检索评测
 src/cli.mjs        命令行
 personas/          人格包（dafeiyu 是示例）

@@ -130,7 +130,10 @@ node src/cli.mjs timeline 2026-11-01
 
 已完成：`memory_*` 七个工具（search/timeline/get/summary/remember/forget/stats）+ `forget` 的派生层标脏。
 
-**剩余**：query planning（把问题变成查询计划）。
+已完成：`src/query.mjs`（时间词 / 实体识别 / 2–3 字滑窗词项 / JS 重排）+ `whalefall ask`；
+自然语言模式下关键词题 100%、换句话问 80%（详见 eval/README）。
+
+**剩余**：模型做查询扩展（语义改写），这是最后一块。
 
 **验收**：30 题评测集跑出 recall@5 基线并记录到 `eval/report.md`。
 

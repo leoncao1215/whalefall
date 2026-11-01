@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import { addEvent } from './events.mjs';
 import { searchEvents } from './search.mjs';
 import { DEFAULT_TZ, parseTime } from './time.mjs';
+import { searchByPlan } from './query.mjs';
 
 export function readJsonl(file) {
   const text = fs.readFileSync(file, 'utf8');
@@ -71,14 +72,16 @@ export function runQuestions(db, keyToId, questions, opts = {}) {
       .filter((id) => id != null);
 
     const started = performance.now();
-    const rows = searchEvents(db, {
-      q: q.query,
-      entity: q.entity,
-      kind: q.kind,
-      from: q.from ? parseTime(q.from, tz) : undefined,
-      to: q.to ? parseTime(q.to, tz) : undefined,
-      limit: k,
-    });
+    const rows = opts.planner
+      ? searchByPlan(db, opts.planner(q), { limit: k })
+      : searchEvents(db, {
+        q: q.query,
+        entity: q.entity,
+        kind: q.kind,
+        from: q.from ? parseTime(q.from, tz) : undefined,
+        to: q.to ? parseTime(q.to, tz) : undefined,
+        limit: k,
+      });
     const ms = performance.now() - started;
 
     const ids = rows.map((r) => r.id);

@@ -105,6 +105,13 @@ function addDays(year, month, day, delta) {
   return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
 }
 
+/** 按日历加减天数（跨时区也按墙上日历走，避免 DST 的 23/25 小时日）。 */
+export function addDaysTs(ts, delta, tz = DEFAULT_TZ) {
+  const p = wallParts(ts, tz);
+  const d = addDays(p.year, p.month, p.day, delta);
+  return zonedEpoch(d.year, d.month, d.day, 0, 0, 0, tz);
+}
+
 /** 某个时间戳所在桶的起点（绝对时间戳）。 */
 export function startOf(ts, level, tz = DEFAULT_TZ) {
   assertLevel(level);

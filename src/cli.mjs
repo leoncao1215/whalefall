@@ -21,6 +21,7 @@ import { assembleSystemPrompt } from './assemble.mjs';
 import { evaluateProactive, proactiveHistory, recordProactiveSend } from './proactive.mjs';
 import { callTool, TOOL_DEFINITIONS } from './tools.mjs';
 import { buildProactivePrompt, createCommandComposer, proactiveTick } from './tick.mjs';
+import { planQuery, searchByPlan } from './query.mjs';
 import { createCommandResponder, createGateway } from './gateway.mjs';
 import { listSummaries } from './summaries.mjs';
 import { readJsonl, runQuestions, seedCorpus, writeReport } from './eval.mjs';
@@ -35,6 +36,7 @@ const USAGE = `用法：
   whalefall plan [--level day|week|month] [--from <时间>] [--to <时间>] [--days <n>]
   whalefall rollup --summarizer <命令> | --mock [--level day|week|month]
                  [--from <时间>] [--to <时间>] [--days <n>] [--limit <n>] [--dry-run]
+  whalefall ask <问题> [--limit <n>] [--json]
   whalefall context <关键词> [--budget <tokens>] [--hits <n>] [--json]
   whalefall persona [--dir personas/dafeiyu] [--json]
   whalefall personas [--dir personas] [--json]
@@ -48,7 +50,7 @@ const USAGE = `用法：
   whalefall tools [--json]
   whalefall summaries [--level <层级>] [--limit <n>] [--json]
   whalefall stats [--json]
-  whalefall eval [--corpus eval/corpus.jsonl] [--questions eval/questions.jsonl]
+  whalefall eval [--nl] [--corpus eval/corpus.jsonl] [--questions eval/questions.jsonl]
                  [--hard eval/questions-hard.jsonl] [--k 5] [--out eval/report.md] [--json]
   whalefall export [--out <文件>]
 
@@ -397,6 +399,22 @@ async function main() {
       return 0;
     }
 
+    if (command === 'ask') {
+      const question = positional.slice(1).join(' ');
+      if (!question) throw new Error('ask 需要一个问题');
+      const entities = db.prepare('SELECT name FROM entities ORDER BY id').all().map((r) => r.name);
+      const plan = planQuery(question, { now: Date.now(), tz, entities });
+      const hits = searchByPlan(db, plan, { limit: Number(flags.limit) || 3 });
+      if (flags.json) { console.log(JSON.stringify({ plan, hits }, null, 2)); return 0; }
+      const range = plan.from == null ? '不限时间' : `${formatLocal(plan.from, tz)} → ${formatLocal(plan.to, tz)}`;
+      console.log(`计划：实体=${plan.entity ?? '-'}  时间=${range}`);
+      console.log(`词项：${plan.terms.join(' / ') || '(无)'}`);
+      console.log('');
+      if (!hits.length) { console.log('没找到。'); return 0; }
+      for (const e of hits) console.log(fmtEvent(e), '\n');
+      return 0;
+    }
+
     if (command === 'context') {
       const q = positional.slice(1).join(' ');
       if (!q) throw new Error('context 需要一个关键词（或用 --entity）');
@@ -444,9 +462,13 @@ async function main() {
       const hard = hardFile && fs.existsSync(hardFile) ? readJsonl(hardFile) : null;
       const map = seedCorpus(db, corpus, { tz });
       const k = Number(flags.k) || 5;
+      const entities = db.prepare('SELECT name FROM entities ORDER BY id').all().map((r) => r.name);
+      const planner = flags.nl
+        ? (q) => planQuery(q.question, { now: Date.now(), tz, entities })
+        : null;
       const suite = {
-        easy: runQuestions(db, map, easy, { k, tz }),
-        hard: hard ? runQuestions(db, map, hard, { k, tz }) : null,
+        easy: runQuestions(db, map, easy, { k, tz, planner }),
+        hard: hard ? runQuestions(db, map, hard, { k, tz, planner }) : null,
       };
       if (flags.json) { console.log(JSON.stringify(suite, null, 2)); return 0; }
       printReport('关键词基线', suite.easy);

@@ -4,7 +4,7 @@
 {"id":"q04","question":"上次吃火锅是什么时候？","query":"火锅","expected":["e06","e29"]}
 {"id":"q05","question":"我硬拉现在多少公斤？","query":"硬拉","expected":["e14"]}
 {"id":"q06","question":"楼下那只猫是什么猫？","query":"猫","expected":["e16"]}
-{"id":"q07","question":"上周中午吃麻辣烫那次加了几份丸子？","query":"麻辣烫","expected":["e19"]}
+{"id":"q07","question":"这周二中午吃麻辣烫那次加了几份丸子？","query":"麻辣烫","expected":["e19"]}
 {"id":"q08","question":"妈妈寄来的腊肠我怎么吃的？","query":"腊肠","expected":["e23"]}
 {"id":"q09","question":"我上次失眠在想什么？","query":"失眠","expected":["e26"]}
 {"id":"q10","question":"最近一次加班到几点？","query":"加班","expected":["e10"]}
