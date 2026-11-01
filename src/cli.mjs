@@ -20,6 +20,7 @@ import { runDreamSummaries } from './dream.mjs';
 import { createCommandSummarizer, createMockSummarizer, summarizerPayload } from './summarizer.mjs';
 import { buildContext } from './context.mjs';
 import { harvestSessions } from './harvest.mjs';
+import { rebuildFromSessions, verifyHarvest } from './verify.mjs';
 import { listPersonas, loadPersona, renderPersona } from './persona.mjs';
 import { assembleSystemPrompt } from './assemble.mjs';
 import { evaluateProactive, proactiveHistory, recordProactiveSend } from './proactive.mjs';
@@ -48,6 +49,8 @@ const USAGE = `用法：
   whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
   whalefall proactive log [--json]
+  whalefall verify [--hours <n>] [--source qq,web]
+  whalefall reindex --yes [--hours <n>]
   whalefall harvest [--hours 24] [--source qq,web] [--dry-run] [--full]
   whalefall dream [--hours 24] [--source qq,web] [--summarizer <命令>] [--dry-run]
                  [--include-today] [--levels day,week,month,year]
@@ -309,6 +312,41 @@ async function main() {
       if (flags.json) { console.log(JSON.stringify(out, null, 2)); return 0; }
       console.log(out.system);
       console.log(`\n-- ${out.tokens}/${out.budget} tokens${out.overBudget ? '（超预算）' : ''}`);
+      return 0;
+    }
+
+    if (command === 'verify') {
+      const hours = Number(flags.hours) || 0;
+      const since = hours > 0 ? Date.now() - hours * 3600000 : 0;
+      const root = String(flags.root || path.join(
+        process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'sessions',
+      ));
+      const sources = typeof flags.source === 'string' && flags.source !== 'all'
+        ? String(flags.source).split(',').map((x) => x.trim()).filter(Boolean)
+        : null;
+
+      const out = verifyHarvest(db, { root, since, sources });
+      console.log(`扫描 ${out.files} 个会话，预期 ${out.turns} 个 turn，已入库 ${out.present} 个，缺失 ${out.missing.length} 个`);
+      for (const miss of out.missing.slice(0, 10)) {
+        console.log(`  ✗ ${miss.source} ${miss.sessionId.slice(0, 20)} turn ${miss.turn}：${miss.title}`);
+      }
+      if (out.missing.length > 10) console.log(`  …还有 ${out.missing.length - 10} 个`);
+      return out.missing.length ? 1 : 0;
+    }
+
+    if (command === 'reindex') {
+      if (!flags.yes) {
+        throw new Error('reindex 会删除并重建派生的对话事件与全部摘要；确认请加 --yes');
+      }
+      const hours = Number(flags.hours) || 0;
+      const since = hours > 0 ? Date.now() - hours * 3600000 : 0;
+      const root = String(flags.root || path.join(
+        process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'sessions',
+      ));
+      const out = rebuildFromSessions(db, { root, since, tz });
+      console.log(`重建前：对话 ${out.before.conversations} 条、摘要 ${out.before.summaries} 条`);
+      console.log(`重建后：扫描 ${out.after.files} 个会话，恢复对话 ${out.after.conversations} 条`);
+      console.log('摘要已清空，需要重跑 dream（或等凌晨的 cron）。');
       return 0;
     }
 

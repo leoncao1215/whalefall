@@ -79,6 +79,8 @@ node src/cli.mjs secret list      # 只显示掩码
 
 ```bash
 node src/cli.mjs harvest --hours 24                   # 只采集（零 token，适合高频跑）
+node src/cli.mjs verify                              # 对账：每个 turn 是否都入库
+node src/cli.mjs reindex --yes                       # 从会话重建（会清空摘要）
 node src/cli.mjs dream --hours 24 --dry-run          # 先看会归档多少
 node src/cli.mjs dream --hours 24                    # 只归档
 node src/cli.mjs dream --hours 24 --summarizer "node scripts/deepseek-summarize.mjs"
@@ -90,6 +92,7 @@ node src/cli.mjs dream --hours 24 --summarizer "node scripts/deepseek-summarize.
 - **增量**：`harvest_state` 记每个文件读到哪个字节，只解新帧；只消费到最后一个 `turn/end`，
   避免半个 turn 被去重吃掉；
 - 摘要记 `covered_until`，同一天来了新对话会自动重摘；
+- `verify` 对账、`reindex` 重建：证明 SQLite 只是可重建的投影；
 - 摘要按来源各切一份（`day/qq`、`day/web`、`day/agent`）+ 一份合并的 `day/all`，
   用 `memory_summary --source qq` 只取自己那份；
 - **自底向上**：周从日、月从周、年从月；`all` 读的是各来源**同层**摘要，不重读原文。

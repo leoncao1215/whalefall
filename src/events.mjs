@@ -34,6 +34,11 @@ function canonicalHash(payload) {
   return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 }
 
+/** 和 addEvent 用 dedupeKey 时算出来的哈希一致（verify 对账要用）。 */
+export function dedupeHash(key) {
+  return canonicalHash({ dedupeKey: String(key) });
+}
+
 /**
  * 写入一条事件。
  *

@@ -119,6 +119,10 @@ node src/cli.mjs timeline 2026-11-01
 
 **验收**：给 7 天假数据 → plan 出 7 个 day 桶 → 假 summarizer 写入 → 再 plan 为空（幂等）。
 
+### P3.6 · 对账与重建
+
+`src/verify.mjs`：verify 比对"会话里的 turn"与"库里的事件"；reindex 清派生数据后从会话重建。
+
 ### P3.5 · dream（会话归档 + 自底向上滚动）
 
 `src/harvest.mjs` 采集；`src/hierarchy.mjs` 让周从日、月从周、年从月；`all` 从各来源同层摘要聚合。
