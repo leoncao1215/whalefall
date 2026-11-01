@@ -56,13 +56,17 @@ node src/cli.mjs tick --now 2026-11-01T15:00 --text "感冒好点没"
 `data/secrets.json`（已 gitignore、权限 600），或环境变量（优先）：
 
 ```bash
-# 终端里输入，不落 shell history、不进聊天记录
-read -rsp 'AppSecret: ' S; echo
+# 交互输入（不回显，bash/zsh 都能用；不落 shell history）
+node src/cli.mjs secret set qq.appSecret --prompt
+
+# 或从管道读
 printf '%s' "$S" | node src/cli.mjs secret set qq.appSecret
-unset S
 
 node src/cli.mjs secret list      # 只显示掩码
 ```
+
+> bash 的 `read -p` 在 zsh 里是另一个意思（读协进程），会报 `read: -p: no coprocess`；
+> 用 `--prompt` 就不用操心 shell 差异。
 
 环境变量名：`QQ_APP_ID`、`QQ_APP_SECRET`、`QQ_PUBLIC_KEY`（临时注入/CI 用）。
 

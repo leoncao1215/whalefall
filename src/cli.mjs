@@ -44,7 +44,7 @@ const USAGE = `用法：
   whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
   whalefall proactive log [--json]
-  whalefall secret set <键名> [--value <值>]   # 不给 --value 就从 stdin 读
+  whalefall secret set <键名> [--value <值> | --prompt]   # 不给就从 stdin 读
   whalefall secret list [--json]
   whalefall secret rm <键名>
   whalefall serve [--port 8787] [--host 127.0.0.1] [--token <令牌>] [--responder <命令>] [--echo]
@@ -99,6 +99,43 @@ function fmtEvent(e) {
   const body = e.body ? `\n    ${e.body.replace(/\n/g, '\n    ')}` : '';
   const actors = e.actors.length ? `\n    参与者：${e.actors.join('、')}` : '';
   return `${head}${body}${actors}`;
+}
+
+/**
+ * 在 TTY 上读一段不回显的输入（跨 shell 都能用）。
+ * 为什么不用 shell 的 read -s：zsh 的 read -p 是"读协进程"，会直接报错。
+ */
+function promptSecret(label) {
+  const stdin = process.stdin;
+  if (!stdin.isTTY) throw new Error('--prompt 需要交互终端');
+  process.stderr.write(label);
+  stdin.setRawMode(true);
+  stdin.resume();
+  stdin.setEncoding('utf8');
+
+  return new Promise((resolve, reject) => {
+    let value = '';
+    const cleanup = () => {
+      stdin.removeListener('data', onData);
+      try { stdin.setRawMode(false); } catch { /* ignore */ }
+      stdin.pause();
+    };
+    const onData = (chunk) => {
+      for (const ch of chunk) {
+        if (ch === '\r' || ch === '\n') {
+          cleanup();
+          process.stderr.write('\n');
+          resolve(value);
+          return;
+        }
+        if (ch === '\u0003') { cleanup(); process.stderr.write('\n'); process.exit(130); }
+        if (ch === '\u007f' || ch === '\b') { value = value.slice(0, -1); continue; }
+        value += ch;
+      }
+    };
+    stdin.on('data', onData);
+    stdin.on('error', reject);
+  });
 }
 
 function printReport(title, report) {
@@ -267,8 +304,11 @@ async function main() {
         const key = positional[2];
         if (!key) throw new Error('用法：whalefall secret set <键名> [--value <值>]');
         let value = typeof flags.value === 'string' ? flags.value : '';
+        if (!value && flags.prompt) value = await promptSecret('密钥值（输入不回显）: ');
         if (!value) {
-          if (process.stdin.isTTY) throw new Error('没有 --value，且 stdin 是终端；请用管道输入或加 --value');
+          if (process.stdin.isTTY) {
+            throw new Error('没有 --value，且 stdin 是终端；用 --prompt 交互输入，或用管道');
+          }
           value = fs.readFileSync(0, 'utf8').trim();
         }
         const out = setSecret(key, value);
