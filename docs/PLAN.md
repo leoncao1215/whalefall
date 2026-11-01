@@ -2,7 +2,7 @@
 
 > 给 agent 一套真正记得住的记忆：**原文永远沉底，摘要按层分解，检索按需下潜。**
 >
-> 状态：P1/P2 完成 · P3 进行中（评测 + 装配）· P4 人格包已可加载 · 最后更新 2026-11-01
+> 状态：P1/P2/P4 完成 · P3 进行中 · P5 闸门已完成，缺触发器 · 最后更新 2026-11-01
 
 ---
 
@@ -132,18 +132,22 @@ node src/cli.mjs timeline 2026-11-01
 
 **验收**：30 题评测集跑出 recall@5 基线并记录到 `eval/report.md`。
 
-### P4 · 人格（进行中）
+### P4 · 人格 ✅
 
 `persona/` 包：identity.md + policy.json + examples.jsonl；加载器与版本号。
 
-已完成：`src/persona.mjs`（加载/校验/渲染 + token 估算）、`personas/dafeiyu/` 示例、5 个单测。
-剩余：与 `buildContext` 合流、按版本切换、示例 A/B。
+已完成：`src/persona.mjs`（加载/校验/渲染）、`personas/dafeiyu/` 示例、`src/assemble.mjs` 合流、5 个单测。
+剩余：按版本切换、示例 A/B。
 
 **验收**：改人格不影响记忆；同一输入换包输出风格可辨。
 
-### P5 · 主动
+### P5 · 主动（进行中）
 
 schedule（DSH 已有）+ 检索 + 闸门（安静时段/日上限/正在聊/额度）+ 幂等。
+
+已完成：`src/proactive.mjs`（跨午夜安静时段、每日上限、最小间隔、用户活跃、无料不说）、
+`proactive_log` 表（migration v2）、CLI check/record/log。
+剩余：定时触发器接入、主动内容的生成与幂等。
 
 **验收**：连续 24h 模拟，主动消息条数 ≤ 上限，安静时段 0 条。
 

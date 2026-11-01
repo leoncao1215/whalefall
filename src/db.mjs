@@ -101,7 +101,23 @@ CREATE TABLE summaries (
 CREATE INDEX idx_summaries_level ON summaries(level, bucket_start);
 `;
 
-const MIGRATIONS = [{ version: 1, sql: SCHEMA_V1 }];
+const SCHEMA_V2 = `
+-- 主动消息的流水：既用来算"今天说了几次"，也是"我说过什么"的证据。
+CREATE TABLE proactive_log (
+  id    INTEGER PRIMARY KEY,
+  ts    INTEGER NOT NULL,
+  kind  TEXT    NOT NULL DEFAULT 'ping',
+  text  TEXT    NOT NULL DEFAULT '',
+  meta  TEXT    NOT NULL DEFAULT '{}'
+) STRICT;
+
+CREATE INDEX idx_proactive_ts ON proactive_log(ts);
+`;
+
+const MIGRATIONS = [
+  { version: 1, sql: SCHEMA_V1 },
+  { version: 2, sql: SCHEMA_V2 },
+];
 
 /** @returns {number} 迁移后的 schema 版本 */
 export function migrate(db) {

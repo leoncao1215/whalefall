@@ -16,6 +16,8 @@ import { planRollup, runRollup } from './rollup.mjs';
 import { createCommandSummarizer, createMockSummarizer, summarizerPayload } from './summarizer.mjs';
 import { buildContext } from './context.mjs';
 import { listPersonas, loadPersona, renderPersona } from './persona.mjs';
+import { assembleSystemPrompt } from './assemble.mjs';
+import { evaluateProactive, proactiveHistory, recordProactiveSend } from './proactive.mjs';
 import { listSummaries } from './summaries.mjs';
 import { readJsonl, runQuestions, seedCorpus, writeReport } from './eval.mjs';
 import { bucketOf, DEFAULT_TZ, formatLocal, parseTime, startOf } from './time.mjs';
@@ -32,6 +34,9 @@ const USAGE = `用法：
   whalefall context <关键词> [--budget <tokens>] [--hits <n>] [--json]
   whalefall persona [--dir personas/dafeiyu] [--json]
   whalefall personas [--dir personas] [--json]
+  whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
+  whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
+  whalefall proactive log [--json]
   whalefall summaries [--level <层级>] [--limit <n>] [--json]
   whalefall stats [--json]
   whalefall eval [--corpus eval/corpus.jsonl] [--questions eval/questions.jsonl]
@@ -215,6 +220,58 @@ async function main() {
       console.log(`完成 ${ok.length} 个，失败 ${failed.length} 个`);
       for (const f of failed) console.error(`  ✗ ${f.bucket.key}: ${f.error}`);
       return failed.length ? 1 : 0;
+    }
+
+    if (command === 'prompt') {
+      const q = positional.slice(1).join(' ');
+      if (!q && !flags.entity) throw new Error('prompt 需要一个关键词（或用 --entity）');
+      const persona = flags.persona === false ? null : loadPersona(String(flags.persona || 'personas/dafeiyu'));
+      const out = assembleSystemPrompt(db, {
+        persona,
+        q,
+        entity: flags.entity,
+        budget: Number(flags.budget) || 1500,
+        tz,
+      });
+      if (flags.json) { console.log(JSON.stringify(out, null, 2)); return 0; }
+      console.log(out.system);
+      console.log(`\n-- ${out.tokens}/${out.budget} tokens${out.overBudget ? '（超预算）' : ''}`);
+      return 0;
+    }
+
+    if (command === 'proactive') {
+      const sub = positional[1];
+      if (sub === 'log') {
+        const rows = proactiveHistory(db);
+        if (flags.json) { console.log(JSON.stringify(rows, null, 2)); return 0; }
+        if (!rows.length) { console.log('还没有主动记录。'); return 0; }
+        for (const r of rows) console.log(`${formatLocal(r.ts, tz)}  [${r.kind}]  ${r.text}`);
+        return 0;
+      }
+      if (sub === 'record') {
+        const text = String(flags.text || positional.slice(2).join(' ') || '');
+        if (!text) throw new Error('proactive record 需要内容');
+        const id = recordProactiveSend(db, { text, kind: String(flags.kind || 'ping') });
+        console.log(`已记录 #${id}`);
+        return 0;
+      }
+      // 默认 check
+      const persona = flags.persona === false ? null : loadPersona(String(flags.persona || 'personas/dafeiyu'));
+      const policy = persona?.policy?.proactive ?? { enabled: false };
+      const now = flags.now ? parseTime(flags.now, tz) : Date.now();
+      const since = now - 2 * 86400000;
+      const history = proactiveHistory(db, { since });
+      const verdict = evaluateProactive({
+        now,
+        policy,
+        history,
+        lastUserMessageAt: flags['user-last'] ? parseTime(flags['user-last'], tz) : null,
+        hasSubstance: flags.substance !== false,
+        tz,
+      });
+      if (flags.json) { console.log(JSON.stringify({ verdict, now, history: history.length }, null, 2)); return 0; }
+      console.log(`${verdict.ok ? '✅ 可以开口' : '⛔ 不说话'}  [${verdict.code}]  ${verdict.reason}`);
+      return 0;
     }
 
     if (command === 'persona') {
