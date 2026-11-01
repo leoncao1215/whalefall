@@ -8,7 +8,7 @@ import {
 } from '../src/persona-sync.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const PERSONA = loadPersona(path.join(ROOT, '..', 'personas', 'dafeiyu'));
+const PERSONA = loadPersona(path.join(ROOT, 'fixtures', 'persona'));
 
 const PROFILE = `# profile
 - id: im-qqbot
@@ -24,7 +24,7 @@ const PROFILE = `# profile
 
 test('渲染：私聊与群聊两份 prompt 都有记忆规则', () => {
   const { direct, group } = renderQqPrompts(PERSONA);
-  assert.match(direct, /大肥鱼/);
+  assert.match(direct, /测试鱼/);
   assert.match(direct, /memory_search/);
   assert.match(group, /群聊规矩/);
   assert.match(group, /memory_search/);

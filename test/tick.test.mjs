@@ -8,7 +8,7 @@ import { proactiveHistory } from '../src/proactive.mjs';
 import { buildProactivePrompt, proactiveTick } from '../src/tick.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const PERSONA = loadPersona(path.join(ROOT, '..', 'personas', 'dafeiyu'));
+const PERSONA = loadPersona(path.join(ROOT, 'fixtures', 'persona'));
 const SH = 'Asia/Shanghai';
 const NOON = Date.parse('2026-11-01T15:00:00+08:00');
 
@@ -21,7 +21,7 @@ test('提示词：带时间、人格名、记忆块，并允许不说话', () =>
     history: [{ ts: NOON - 4 * 3600000, text: '早，记得吃早饭' }],
   });
   assert.match(prompt, /2026-11-01 15:00/);
-  assert.match(prompt, /大肥鱼/);
+  assert.match(prompt, /测试鱼/);
   assert.match(prompt, /感冒/);
   assert.match(prompt, /输出空/);
   assert.match(prompt, /不要重复/);

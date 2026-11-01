@@ -62,8 +62,6 @@ test('listInstances：列出 home 里的个体', () => withHome(() => {
 test('resolveInstance：home 里没有时退回旧位置', () => withHome((home) => {
   const inst = resolveInstance('dafeiyu');
   assert.equal(inst.dir, path.join(home, 'instances', 'dafeiyu'));
-  // 仓库里有旧人格包，应该被识别为 legacy
-  if (fs.existsSync(path.resolve('personas', 'dafeiyu', 'persona.json'))) {
-    assert.equal(inst.legacy.persona, true);
-  }
+  // 旧位置已经清掉，不应该再退回 legacy
+  assert.equal(inst.legacy.persona, false);
 }));

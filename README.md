@@ -46,7 +46,7 @@ node src/cli.mjs timeline 2026-11-01
 node src/cli.mjs stats
 node src/cli.mjs plan --level day --days 7
 node src/cli.mjs context 猪脚饭 --budget 300
-node src/cli.mjs persona --dir personas/dafeiyu
+node src/cli.mjs persona
 node src/cli.mjs prompt 猪脚饭 --budget 900
 node src/cli.mjs proactive check --now 2026-11-01T23:40
 node src/cli.mjs tools
@@ -128,7 +128,7 @@ curl -s -X POST http://127.0.0.1:8787/v1/chat \
 
 ### 同步到 QQ（生成式配置）
 
-`personas/` 是唯一源头；DSH profile 里 `im-qqbot` 的 `directPrompt` / `groupPrompt`
+个体目录（默认 `~/.whalefall/instances/<id>/persona/`）是唯一源头；DSH profile 里 `im-qqbot` 的 `directPrompt` / `groupPrompt`
 由脚本生成，带 BEGIN/END 标记，只替换标记之间的内容：
 
 ```bash

@@ -1,0 +1,9 @@
+{
+  "id": "testfish",
+  "name": "测试鱼",
+  "version": "0.0.1",
+  "description": "测试用个体，不代表任何真实角色。",
+  "identityFile": "identity.md",
+  "policyFile": "policy.json",
+  "examplesFile": "examples.jsonl"
+}

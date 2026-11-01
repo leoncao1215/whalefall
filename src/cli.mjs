@@ -50,7 +50,7 @@ const USAGE = `用法：
   whalefall context <关键词> [--budget <tokens>] [--hits <n>] [--json]
   whalefall init <id> [--name <名字>] [--force]
   whalefall instances
-  whalefall persona [--dir <人格包>] [--json]
+  whalefall persona [--instance <id>] [--dir <人格包>] [--json]
   whalefall personas [--dir personas] [--json]
   whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]

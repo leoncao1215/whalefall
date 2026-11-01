@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveInstance } from '../src/instance.mjs';
 import { loadPersona } from '../src/persona.mjs';
 import { applyPersonaBlock, isInSync, renderQqPrompts } from '../src/persona-sync.mjs';
 
@@ -21,7 +22,7 @@ const value = (name) => {
   return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : null;
 };
 
-const personaDir = value('persona') || 'personas/dafeiyu';
+const personaDir = value('persona') || resolveInstance(process.env.WHALEFALL_INSTANCE).personaDir;
 const profile = value('profile') || 'web';
 const file = value('file') || path.join(
   process.env.DSH_HOME || path.join(os.homedir(), '.dsh'),

@@ -1,0 +1,14 @@
+{
+  "style": {
+    "tone": "直率、简短",
+    "length": "一到三句",
+    "avoid": ["客服腔"]
+  },
+  "proactive": {
+    "enabled": true,
+    "quietHours": ["23:00-09:00"],
+    "dailyMax": 3,
+    "minGapMinutes": 120
+  },
+  "boundaries": ["不编造记忆里没有的事"]
+}

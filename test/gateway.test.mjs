@@ -8,7 +8,7 @@ import { createGateway } from '../src/gateway.mjs';
 import { recordProactiveSend } from '../src/proactive.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const PERSONA = loadPersona(path.join(ROOT, '..', 'personas', 'dafeiyu'));
+const PERSONA = loadPersona(path.join(ROOT, 'fixtures', 'persona'));
 const TOKEN = 'test-token-0123456789abcdef';
 
 async function start(overrides = {}) {
