@@ -52,6 +52,13 @@ node src/cli.mjs tick --now 2026-11-01T15:00 --text "感冒好点没"
 `src/mcp.mjs` 是一个零依赖的 stdio MCP server，暴露七个 `memory_*` 工具。
 在 DSH profile 的 `cordis.patch.yml` 里加一段（路径换成你的）：
 
+也可以不定时跑：`node src/cli.mjs tick --recent --command "<你的模型命令>"`。
+真正的定时交给宿主（cron 或 DSH 的 schedule 都行），闸门会自己判断该不该说：
+
+```cron
+*/30 9-22 * * * cd /path/whalefall && node src/cli.mjs tick --recent --command "llm -m deepseek-chat" >> data/tick.log 2>&1
+```
+
 ```yaml
 - insert:
     - id: whalefall

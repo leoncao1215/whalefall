@@ -40,7 +40,7 @@ const USAGE = `用法：
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
   whalefall proactive log [--json]
   whalefall tick [--text <内容> | --command <命令>] [--now <时间>] [--memory <文本>]
-                 [--q <关键词>] [--dry-run]
+                 [--q <关键词> | --recent] [--dry-run]
   whalefall tool <工具名> [--args '<json>'] [--json]
   whalefall tools [--json]
   whalefall summaries [--level <层级>] [--limit <n>] [--json]
@@ -251,6 +251,9 @@ async function main() {
       let memoryText = typeof flags.memory === 'string' ? flags.memory : '';
       if (!memoryText && typeof flags.q === 'string') {
         memoryText = buildContext(db, { q: String(flags.q), budget: 400, tz }).text;
+      }
+      if (!memoryText && flags.recent) {
+        memoryText = buildContext(db, { budget: 400, tz }).text;
       }
 
       if (flags['dry-run']) {
