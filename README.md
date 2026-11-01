@@ -88,7 +88,9 @@ node src/cli.mjs dream --hours 24 --summarizer "node scripts/deepseek-summarize.
 - `dedupeKey = sessionId:turn`，重复跑不会重复写；
 - 摘要记 `covered_until`，同一天来了新对话会自动重摘；
 - 摘要按来源各切一份（`day/qq`、`day/web`、`day/agent`）+ 一份合并的 `day/all`，
-  用 `memory_summary --source qq` 只取自己那份。
+  用 `memory_summary --source qq` 只取自己那份；
+- **自底向上**：周从日、月从周、年从月；`all` 读的是各来源**同层**摘要，不重读原文。
+  越远的记忆读的越是几百字的摘要，而不是几万字的原始记录。
 
 `--include-today` 才会摘今天（默认只摘已经过完的日子，避免凌晨摘一遍、晚上再摘一遍）。
 

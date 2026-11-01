@@ -119,6 +119,10 @@ node src/cli.mjs timeline 2026-11-01
 
 **验收**：给 7 天假数据 → plan 出 7 个 day 桶 → 假 summarizer 写入 → 再 plan 为空（幂等）。
 
+### P3.5 · dream（会话归档 + 自底向上滚动）
+
+`src/harvest.mjs` 采集；`src/hierarchy.mjs` 让周从日、月从周、年从月；`all` 从各来源同层摘要聚合。
+
 ### P3.5 · dream（会话归档）
 
 `src/harvest.mjs`：多帧 zstd 解码 → 按 turn 抽对话 → 写事件（带 source）→ rollup。

@@ -16,6 +16,7 @@ import { openDb, closeDb } from './db.mjs';
 import { addEvent, getEvent, hydrate } from './events.mjs';
 import { searchEvents, timeline, stats } from './search.mjs';
 import { distinctEventSources, planRollup, runRollup } from './rollup.mjs';
+import { runDreamSummaries } from './dream.mjs';
 import { createCommandSummarizer, createMockSummarizer, summarizerPayload } from './summarizer.mjs';
 import { buildContext } from './context.mjs';
 import { harvestSessions } from './harvest.mjs';
@@ -47,7 +48,8 @@ const USAGE = `用法：
   whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
   whalefall proactive log [--json]
-  whalefall dream [--hours 24] [--source qq,web] [--summarizer <命令>] [--dry-run] [--include-today]
+  whalefall dream [--hours 24] [--source qq,web] [--summarizer <命令>] [--dry-run]
+                 [--include-today] [--levels day,week,month,year]
   whalefall secret set <键名> [--value <值> | --prompt]   # 不给就从 stdin 读
   whalefall secret list [--json]
   whalefall secret rm <键名>
@@ -327,7 +329,6 @@ async function main() {
       }
 
       if (typeof flags.summarizer === 'string') {
-        const level = String(flags.level || 'day');
         const from = startOf(since, 'day', tz);
         // 默认只摘"已经过完的日子"：凌晨跑批时，今天的桶还只有几个小时，
         // 现在摘一遍、明天再摘一遍，纯属浪费调用。--include-today 可以强制包含今天。
@@ -335,24 +336,18 @@ async function main() {
         const summarize = createCommandSummarizer(String(flags.summarizer), {
           timeoutMs: Number(flags.timeout) || 180000,
         });
+        const levels = typeof flags.levels === 'string'
+          ? String(flags.levels).split(',').map((x) => x.trim()).filter(Boolean)
+          : undefined;
 
-        // 每个来源各摘一份，再加一份合并视图
-        const scopes = [null, ...distinctEventSources(db, { from, to })];
-        let done = 0;
-        let failedCount = 0;
-        let any = false;
-        for (const scope of scopes) {
-          const plan = planRollup(db, { level, tz, from, to, source: scope });
-          if (!plan.length) continue;
-          any = true;
-          const { ok, failed } = await runRollup(db, plan, summarize, { tz });
-          done += ok.length;
-          failedCount += failed.length;
-          console.log(`  ${scope ?? 'all'}: 完成 ${ok.length}，失败 ${failed.length}`);
-          for (const f of failed) console.error(`    ✗ ${f.bucket.key}: ${f.error}`);
-        }
-        console.log(any ? `摘要：完成 ${done} 个，失败 ${failedCount} 个` : '没有待摘要的桶。');
-        return failedCount ? 1 : 0;
+        const out = await runDreamSummaries(db, {
+          summarize, tz, from, to, levels,
+          log: (line) => console.log(`  ${line}`),
+        });
+        console.log(out.done || out.failed
+          ? `摘要：完成 ${out.done} 个，失败 ${out.failed} 个`
+          : '没有待摘要的桶。');
+        return out.failed ? 1 : 0;
       }
       return 0;
     }
