@@ -20,12 +20,14 @@
 - **主动闸门 + 心跳**：闸门（安静时段/日上限/最小间隔/用户在聊）+ `proactiveTick()`（闸门 → 生成 → 落库），默认不说话。
 - **MCP server**：零依赖 stdio 服务，`memory_*` 七个工具直接接进 DSH。
 - **桌宠网关**：HTTP + SSE，跨机可用；Bearer token，默认只听回环。
-- **QQ 官方机器人适配层**：事件规范化、被动回复报文、Ed25519 回调验签、token 缓存（详见 [docs/QQ.md](docs/QQ.md)）。
 - **工具门面**：7 个 `memory_*` 工具（search / timeline / get / summary / remember / forget / stats），带 JSON Schema。
 - **真删除**：`memory_forget` 删原文，并把覆盖该时刻的摘要标脏（stale），下次 rollup 会重算。
 - **CLI**：`add / search / timeline / context / plan / rollup / summaries / stats / eval / export`。
 
-还没有的：上下文装配、人格包、主动机制、桌宠/QQ 入口（见 [docs/PLAN.md](docs/PLAN.md) 的 P3 之后）。
+还没有的：桌宠客户端（服务端协议已定，前端没写）。
+
+> QQ 入口已交给官方插件 [`@tencent-connect/dsh-qqbot`](https://www.npmjs.com/package/@tencent-connect/dsh-qqbot)，
+> 本仓库不再维护自己的 QQ 适配层（v0.1 时写过一版，已移除，历史见 git）。
 
 ## 快速开始
 
