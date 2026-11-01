@@ -51,6 +51,21 @@ node src/cli.mjs tool memory_search --q 猪脚饭
 node src/cli.mjs tick --now 2026-11-01T15:00 --text "感冒好点没"
 ```
 
+## 密钥怎么放
+
+`data/secrets.json`（已 gitignore、权限 600），或环境变量（优先）：
+
+```bash
+# 终端里输入，不落 shell history、不进聊天记录
+read -rsp 'AppSecret: ' S; echo
+printf '%s' "$S" | node src/cli.mjs secret set qq.appSecret
+unset S
+
+node src/cli.mjs secret list      # 只显示掩码
+```
+
+环境变量名：`QQ_APP_ID`、`QQ_APP_SECRET`、`QQ_PUBLIC_KEY`（临时注入/CI 用）。
+
 ## 桌宠网关（跨机）
 
 ```bash

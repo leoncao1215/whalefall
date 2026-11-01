@@ -22,6 +22,7 @@ import { evaluateProactive, proactiveHistory, recordProactiveSend } from './proa
 import { callTool, TOOL_DEFINITIONS } from './tools.mjs';
 import { buildProactivePrompt, createCommandComposer, proactiveTick } from './tick.mjs';
 import { planQuery, searchByPlan } from './query.mjs';
+import { deleteSecret, listSecrets, setSecret } from './secrets.mjs';
 import { createCommandResponder, createGateway } from './gateway.mjs';
 import { listSummaries } from './summaries.mjs';
 import { readJsonl, runQuestions, seedCorpus, writeReport } from './eval.mjs';
@@ -43,6 +44,9 @@ const USAGE = `用法：
   whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
   whalefall proactive log [--json]
+  whalefall secret set <键名> [--value <值>]   # 不给 --value 就从 stdin 读
+  whalefall secret list [--json]
+  whalefall secret rm <键名>
   whalefall serve [--port 8787] [--host 127.0.0.1] [--token <令牌>] [--responder <命令>] [--echo]
   whalefall tick [--text <内容> | --command <命令>] [--now <时间>] [--memory <文本>]
                  [--q <关键词> | --recent] [--dry-run]
@@ -120,7 +124,7 @@ async function main() {
 
   const tz = String(flags.tz || DEFAULT_TZ);
   // 评测默认用内存库，避免把测试语料写进真实记忆
-  const inMemory = command === 'eval' || command === 'persona' || command === 'personas';
+  const inMemory = command === 'eval' || command === 'persona' || command === 'personas' || command === 'secret';
   const dbPath = flags.db ? String(flags.db) : (inMemory ? ':memory:' : undefined);
   const db = openDb(dbPath);
 
@@ -248,6 +252,37 @@ async function main() {
       console.log(out.system);
       console.log(`\n-- ${out.tokens}/${out.budget} tokens${out.overBudget ? '（超预算）' : ''}`);
       return 0;
+    }
+
+    if (command === 'secret') {
+      const sub = positional[1];
+      if (sub === 'list') {
+        const rows = listSecrets();
+        if (flags.json) { console.log(JSON.stringify(rows, null, 2)); return 0; }
+        if (!rows.length) { console.log('还没有存任何密钥。'); return 0; }
+        for (const row of rows) console.log(`${row.key}  =  ${row.masked}`);
+        return 0;
+      }
+      if (sub === 'set') {
+        const key = positional[2];
+        if (!key) throw new Error('用法：whalefall secret set <键名> [--value <值>]');
+        let value = typeof flags.value === 'string' ? flags.value : '';
+        if (!value) {
+          if (process.stdin.isTTY) throw new Error('没有 --value，且 stdin 是终端；请用管道输入或加 --value');
+          value = fs.readFileSync(0, 'utf8').trim();
+        }
+        const out = setSecret(key, value);
+        console.log(`已写入 ${out.key}（${out.masked}）→ ${out.file}（权限 600）`);
+        return 0;
+      }
+      if (sub === 'rm' || sub === 'delete') {
+        const key = positional[2];
+        if (!key) throw new Error('用法：whalefall secret rm <键名>');
+        const out = deleteSecret(key);
+        console.log(out.deleted ? `已删除 ${out.key}` : `没有 ${out.key}`);
+        return 0;
+      }
+      throw new Error('用法：whalefall secret set|list|rm');
     }
 
     if (command === 'serve') {
