@@ -12,9 +12,10 @@
 - **中文检索**：SQLite FTS5 `trigram`，≥3 字直接命中；1~2 字退化成 LIKE。
 - **时间桶**：按**用户时区**的日历切 day/week/month/year，不是 UTC。
 - **分层摘要**：`summaries` 按 `(level, bucket, prompt_version)` 唯一，可懒生成、可重算、旧版本保留。
-- **CLI**：`add / search / timeline / plan / summaries / stats / export`。
+- **摘要链路**：`plan → summarizer → 写库`，摘要器可以是**任何命令**（读 stdin JSON、写 stdout 文本/JSON），先用 mock 也能跑通。
+- **CLI**：`add / search / timeline / plan / rollup / summaries / stats / eval / export`。
 
-还没有的：模型接入、上下文装配、人格包、主动机制、桌宠/QQ 入口（见 [docs/PLAN.md](docs/PLAN.md) 的 P2 之后）。
+还没有的：上下文装配、人格包、主动机制、桌宠/QQ 入口（见 [docs/PLAN.md](docs/PLAN.md) 的 P3 之后）。
 
 ## 快速开始
 
@@ -31,6 +32,25 @@ node src/cli.mjs timeline 2026-11-01
 node src/cli.mjs stats
 node src/cli.mjs plan --level day --days 7
 ```
+
+## 接模型（或任何命令）
+
+`rollup` 不绑定厂商：摘要器是一个命令，读 stdin 的 JSON（含 `prompt` 和 `events`），
+往 stdout 写纯文本或 `{"text": "...", "model": "..."}`。
+
+```bash
+# 1. 先看会喂给模型什么，不花钱
+node src/cli.mjs rollup --dry-run --level day --days 1
+
+# 2. 用 mock 验证写库链路
+node src/cli.mjs rollup --mock --level day --days 7
+
+# 3. 换成任何模型命令（按你自己的工具替换）
+node src/cli.mjs rollup --summarizer "ollama run qwen2.5" --level day --days 7
+node src/cli.mjs rollup --summarizer "llm -m deepseek-chat" --level week --days 30
+```
+
+单个桶失败不会影响其它桶（CLI 会返回非零退出码并打印失败的桶）。
 
 数据库默认在 `data/whalefall.db`，可用 `--db` 或 `WHALEFALL_DB` 覆盖。
 

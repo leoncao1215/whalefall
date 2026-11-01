@@ -2,7 +2,7 @@
 
 > 给 agent 一套真正记得住的记忆：**原文永远沉底，摘要按层分解，检索按需下潜。**
 >
-> 状态：P1 完成 · P3 检索评测基线已跑通 · 最后更新 2026-11-01
+> 状态：P1 完成 · P2 完成 · P3 检索评测基线已跑通 · 最后更新 2026-11-01
 
 ---
 
@@ -110,9 +110,12 @@ node src/cli.mjs search "猪脚饭"   # 能搜到
 node src/cli.mjs timeline 2026-11-01
 ```
 
-### P2 · 摘要与 rollup
+### P2 · 摘要与 rollup ✅
 
 `planRollup` 输出待摘要桶，`applyRollup` 接 summarize 回调写回；预算与失败重试。
+
+已完成：`src/summarizer.mjs`（命令适配器 + mock）、`whalefall rollup`、6 个单测。
+摘要器契约：stdin JSON（`prompt` + `events`）→ stdout 文本或 `{"text","model"}`。
 
 **验收**：给 7 天假数据 → plan 出 7 个 day 桶 → 假 summarizer 写入 → 再 plan 为空（幂等）。
 

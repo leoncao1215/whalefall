@@ -10,9 +10,10 @@
  */
 import fs from 'node:fs';
 import { openDb, closeDb } from './db.mjs';
-import { addEvent, getEvent } from './events.mjs';
+import { addEvent, getEvent, hydrate } from './events.mjs';
 import { searchEvents, timeline, stats } from './search.mjs';
-import { planRollup } from './rollup.mjs';
+import { planRollup, runRollup } from './rollup.mjs';
+import { createCommandSummarizer, createMockSummarizer, summarizerPayload } from './summarizer.mjs';
 import { listSummaries } from './summaries.mjs';
 import { readJsonl, runQuestions, seedCorpus, writeReport } from './eval.mjs';
 import { bucketOf, DEFAULT_TZ, formatLocal, parseTime, startOf } from './time.mjs';
@@ -24,6 +25,8 @@ const USAGE = `用法：
                 [--source <来源>] [--kind <类型>] [--limit <n>] [--json]
   whalefall timeline <YYYY-MM-DD> [--tz <时区>] [--json]
   whalefall plan [--level day|week|month] [--from <时间>] [--to <时间>] [--days <n>]
+  whalefall rollup --summarizer <命令> | --mock [--level day|week|month]
+                 [--from <时间>] [--to <时间>] [--days <n>] [--limit <n>] [--dry-run]
   whalefall summaries [--level <层级>] [--limit <n>] [--json]
   whalefall stats [--json]
   whalefall eval [--corpus eval/corpus.jsonl] [--questions eval/questions.jsonl]
@@ -86,7 +89,7 @@ function printReport(title, report) {
   }
 }
 
-function main() {
+async function main() {
   const { flags, positional } = parseArgs(process.argv.slice(2));
   const command = positional[0];
   if (!command || command === 'help' || flags.help) {
@@ -169,6 +172,45 @@ function main() {
       return 0;
     }
 
+    if (command === 'rollup') {
+      const level = String(flags.level || 'day');
+      const to = flags.to ? parseTime(flags.to, tz) : Date.now();
+      const days = Number(flags.days) || 7;
+      const from = flags.from ? parseTime(flags.from, tz) : to - days * 86400000;
+      const promptVersion = String(flags['prompt-version'] || 'v1');
+      const plan = planRollup(db, { level, tz, from, to, promptVersion });
+      if (!plan.length) { console.log('没有待摘要的桶。'); return 0; }
+
+      const limit = Number(flags.limit) || plan.length;
+      const batch = plan.slice(0, limit);
+      console.log(`待摘要 ${batch.length} 个 ${level} 桶（共 ${plan.length} 个）`);
+
+      let summarize;
+      if (flags.mock) summarize = createMockSummarizer();
+      else if (typeof flags.summarizer === 'string') {
+        summarize = createCommandSummarizer(String(flags.summarizer), {
+          timeoutMs: Number(flags.timeout) || 60000,
+        });
+      } else {
+        throw new Error('rollup 需要 --summarizer "<命令>" 或 --mock');
+      }
+
+      if (flags['dry-run']) {
+        const first = batch[0];
+        const events = first.eventIds
+          .map((id) => db.prepare('SELECT * FROM events WHERE id = ?').get(id))
+          .filter(Boolean)
+          .map(hydrate);
+        console.log(JSON.stringify(summarizerPayload({ level, bucket: first, tz, events }), null, 2));
+        return 0;
+      }
+
+      const { ok, failed } = await runRollup(db, batch, summarize, { promptVersion, tz });
+      console.log(`完成 ${ok.length} 个，失败 ${failed.length} 个`);
+      for (const f of failed) console.error(`  ✗ ${f.bucket.key}: ${f.error}`);
+      return failed.length ? 1 : 0;
+    }
+
     if (command === 'summaries') {
       const rows = listSummaries(db, { level: flags.level, limit: Number(flags.limit) || 20 });
       if (flags.json) { console.log(JSON.stringify(rows, null, 2)); return 0; }
@@ -233,9 +275,9 @@ function main() {
   }
 }
 
-try {
-  process.exitCode = main();
-} catch (error) {
-  console.error(`错误：${error?.message ?? error}`);
-  process.exitCode = 1;
-}
+main()
+  .then((code) => { process.exitCode = code; })
+  .catch((error) => {
+    console.error(`错误：${error?.message ?? error}`);
+    process.exitCode = 1;
+  });
