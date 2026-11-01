@@ -9,6 +9,7 @@
  *   whalefall stats
  */
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { openDb, closeDb } from './db.mjs';
 import { addEvent, getEvent, hydrate } from './events.mjs';
 import { searchEvents, timeline, stats } from './search.mjs';
@@ -20,6 +21,7 @@ import { assembleSystemPrompt } from './assemble.mjs';
 import { evaluateProactive, proactiveHistory, recordProactiveSend } from './proactive.mjs';
 import { callTool, TOOL_DEFINITIONS } from './tools.mjs';
 import { buildProactivePrompt, createCommandComposer, proactiveTick } from './tick.mjs';
+import { createCommandResponder, createGateway } from './gateway.mjs';
 import { listSummaries } from './summaries.mjs';
 import { readJsonl, runQuestions, seedCorpus, writeReport } from './eval.mjs';
 import { bucketOf, DEFAULT_TZ, formatLocal, parseTime, startOf } from './time.mjs';
@@ -39,6 +41,7 @@ const USAGE = `用法：
   whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
   whalefall proactive log [--json]
+  whalefall serve [--port 8787] [--host 127.0.0.1] [--token <令牌>] [--responder <命令>] [--echo]
   whalefall tick [--text <内容> | --command <命令>] [--now <时间>] [--memory <文本>]
                  [--q <关键词> | --recent] [--dry-run]
   whalefall tool <工具名> [--args '<json>'] [--json]
@@ -245,6 +248,30 @@ async function main() {
       return 0;
     }
 
+    if (command === 'serve') {
+      const persona = loadPersona(String(flags.persona || 'personas/dafeiyu'));
+      const token = typeof flags.token === 'string' && flags.token.length >= 16
+        ? String(flags.token)
+        : crypto.randomBytes(24).toString('hex');
+      const responder = typeof flags.responder === 'string'
+        ? createCommandResponder(String(flags.responder), { timeoutMs: Number(flags.timeout) || 60000 })
+        : async ({ text }) => `（还没接模型）我听到你说：${text}`;
+
+      const server = createGateway({ db, token, persona, responder, tz, pollMs: 1000 });
+      const host = String(flags.host || '127.0.0.1');
+      const port = Number(flags.port) || 8787;
+      await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(port, host, resolve);
+      });
+      console.log(`whalefall gateway 已启动：http://${host}:${port}`);
+      console.log(`token: ${token}`);
+      if (host === '0.0.0.0') console.log('⚠ 正在监听所有网卡：请确保这个端口只在可信局域网内可达');
+      console.log('Ctrl+C 退出');
+      await new Promise(() => {});
+      return 0;
+    }
+
     if (command === 'tick') {
       const persona = loadPersona(String(flags.persona || 'personas/dafeiyu'));
       const now = flags.now ? parseTime(flags.now, tz) : Date.now();
@@ -448,6 +475,8 @@ async function main() {
     closeDb(db);
   }
 }
+
+process.on('SIGINT', () => { console.log('\n再见。'); process.exit(0); });
 
 main()
   .then((code) => { process.exitCode = code; })

@@ -18,6 +18,7 @@
 - **系统提示装配**：人格 + 记忆规则 + `<memory>` 数据块，按预算裁剪；记忆明确标成数据而不是指令。
 - **主动闸门 + 心跳**：闸门（安静时段/日上限/最小间隔/用户在聊）+ `proactiveTick()`（闸门 → 生成 → 落库），默认不说话。
 - **MCP server**：零依赖 stdio 服务，`memory_*` 七个工具直接接进 DSH。
+- **桌宠网关**：HTTP + SSE，跨机可用；Bearer token，默认只听回环。
 - **工具门面**：7 个 `memory_*` 工具（search / timeline / get / summary / remember / forget / stats），带 JSON Schema。
 - **真删除**：`memory_forget` 删原文，并把覆盖该时刻的摘要标脏（stale），下次 rollup 会重算。
 - **CLI**：`add / search / timeline / context / plan / rollup / summaries / stats / eval / export`。
@@ -45,6 +46,32 @@ node src/cli.mjs proactive check --now 2026-11-01T23:40
 node src/cli.mjs tools
 node src/cli.mjs tool memory_search --q 猪脚饭
 node src/cli.mjs tick --now 2026-11-01T15:00 --text "感冒好点没"
+```
+
+## 桌宠网关（跨机）
+
+```bash
+node src/cli.mjs serve --port 8787 --token <至少16位的令牌>
+```
+
+| 接口 | 作用 |
+| --- | --- |
+| `POST /v1/chat` | `{text}` → `{reply}`；消息与回复都落库 |
+| `GET /v1/stream` | SSE，推送主动消息（`?token=`） |
+| `GET /v1/history` | 最近的桌宠对话 |
+| `GET /v1/summaries` | 最近的每日摘要 |
+| `GET /health` | 探活 |
+
+所有请求校验 `Authorization: Bearer <token>`（SSE 因为 EventSource 不能带头，用 `?token=`）。
+默认只监听 `127.0.0.1`；跨机需要 `--host 0.0.0.0`——**只在可信局域网这么干，公网请走 SSH 隧道或 TLS 反代**。
+
+没接模型时用默认回声（`--echo` 同理）可以先验证链路：
+
+```bash
+curl -s -X POST http://127.0.0.1:8787/v1/chat \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"text":"在吗"}'
+# {"ok":true,"reply":"（还没接模型）我听到你说：在吗",...}
 ```
 
 ## 接到 DSH（MCP）
@@ -112,6 +139,7 @@ src/tools.mjs      模型可调的工具门面（memory_*）
 src/forget.mjs     删除与派生摘要标脏
 src/tick.mjs       主动心跳：闸门 → 生成 → 落库
 src/mcp.mjs        MCP stdio server
+src/gateway.mjs    桌宠网关（HTTP + SSE）
 src/eval.mjs       检索评测
 src/cli.mjs        命令行
 personas/          人格包（dafeiyu 是示例）

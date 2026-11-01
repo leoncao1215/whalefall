@@ -107,6 +107,20 @@ export function recordProactiveSend(db, { ts = Date.now(), kind = 'ping', text =
   return Number(result.lastInsertRowid);
 }
 
+/** 增量读取：id 大于 afterId 的主动记录（SSE 用）。 */
+export function proactiveSince(db, afterId = 0, limit = 100) {
+  return db
+    .prepare('SELECT * FROM proactive_log WHERE id > ? ORDER BY id ASC LIMIT ?')
+    .all(Number(afterId), Math.max(1, Math.min(500, Number(limit) || 100)))
+    .map((r) => ({
+      id: Number(r.id),
+      ts: Number(r.ts),
+      kind: r.kind,
+      text: r.text,
+      meta: (() => { try { return JSON.parse(r.meta ?? '{}'); } catch { return {}; } })(),
+    }));
+}
+
 export function proactiveHistory(db, { since } = {}) {
   const rows = since
     ? db.prepare('SELECT * FROM proactive_log WHERE ts >= ? ORDER BY ts ASC').all(Number(since))
