@@ -57,6 +57,7 @@ export const TOOL_DEFINITIONS = [
       properties: {
         date: { type: 'string', description: 'YYYY-MM-DD 或 ISO 时间' },
         level: { type: 'string', enum: ['day', 'week', 'month', 'year'] },
+        source: { type: 'string', description: '来源（qq/web/all），默认 all' },
       },
       required: ['level'],
     },
@@ -170,7 +171,7 @@ export function createMemoryTools(db, opts = {}) {
       try {
         const level = String(args.level ?? 'day');
         const ts = args.date ? parseTime(args.date, tz) : Date.now();
-        const summary = summaryAt(db, ts, level, { tz });
+        const summary = summaryAt(db, ts, level, { tz, source: String(args.source || 'all') });
         if (!summary) return { ok: true, summary: null, hint: '这一层还没有摘要' };
         return { ok: true, summary };
       } catch (error) { return fail(error); }

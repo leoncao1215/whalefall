@@ -55,6 +55,53 @@ test('rollup：plan → apply → 再 plan 为空 → 换版本再来一遍', as
   }
 });
 
+test('按来源切分：qq 桶只算 qq 的事件，合并桶算全部', () => {
+  const db = fresh();
+  try {
+    const base = Date.parse('2026-11-01T00:00:00+08:00');
+    addEvent(db, { title: 'qq 聊天', body: 'QQ 里说的话', ts: base + 10 * 3600000, tz: SH, source: 'qq' });
+    addEvent(db, { title: 'web 聊天', body: 'web 里说的话', ts: base + 11 * 3600000, tz: SH, source: 'web' });
+
+    const all = planRollup(db, { level: 'day', tz: SH, from: base, to: base + 86400000 });
+    assert.equal(all.length, 1);
+    assert.equal(all[0].count, 2);
+    assert.equal(all[0].source, 'all');
+
+    const qqPlan = planRollup(db, { level: 'day', tz: SH, from: base, to: base + 86400000, source: 'qq' });
+    assert.equal(qqPlan.length, 1);
+    assert.equal(qqPlan[0].count, 1);
+    assert.equal(qqPlan[0].source, 'qq');
+
+    const webPlan = planRollup(db, { level: 'day', tz: SH, from: base, to: base + 86400000, source: 'web' });
+    assert.equal(webPlan[0].count, 1);
+  } finally {
+    closeDb(db);
+  }
+});
+
+test('不同来源的摘要共存，互不覆盖', async () => {
+  const db = fresh();
+  try {
+    const base = Date.parse('2026-11-01T00:00:00+08:00');
+    addEvent(db, { title: 'qq', body: 'a', ts: base + 3600000, tz: SH, source: 'qq' });
+    addEvent(db, { title: 'web', body: 'b', ts: base + 7200000, tz: SH, source: 'web' });
+
+    for (const source of ['qq', 'web', null]) {
+      const plan = planRollup(db, { level: 'day', tz: SH, from: base, to: base + 86400000, source });
+      assert.equal(plan.length, 1);
+      await runRollup(db, plan, async ({ events }) => ({ text: `${source ?? 'all'}:${events.length}` }), { tz: SH });
+    }
+
+    const rows = listSummaries(db, { level: 'day' });
+    assert.equal(rows.length, 3);
+    assert.deepEqual(rows.map((r) => r.source).sort(), ['all', 'qq', 'web']);
+    assert.equal(summaryAt(db, base + 3600000, 'day', { tz: SH, source: 'qq' }).text, 'qq:1');
+    assert.equal(summaryAt(db, base + 3600000, 'day', { tz: SH }).text, 'all:2');
+  } finally {
+    closeDb(db);
+  }
+});
+
 test('同一天新增事件后，需要重新摘要', async () => {
   const db = fresh();
   try {

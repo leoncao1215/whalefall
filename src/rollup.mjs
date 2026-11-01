@@ -27,17 +27,20 @@ export function planRollup(db, opts = {}) {
   const to = Number(opts.to);
   const promptVersion = String(opts.promptVersion ?? 'v1');
   const maxEventIds = Math.max(1, Number(opts.maxEventIds) || 500);
+  // source 为空 = 合并视图（'all'）；否则只统计这个来源的事件
+  const source = opts.source && opts.source !== 'all' ? String(opts.source) : null;
+  const scope = source ?? 'all';
 
-  const rows = db
-    .prepare('SELECT id, ts FROM events WHERE ts >= ? AND ts < ? ORDER BY ts ASC')
-    .all(from, to);
+  const rows = source
+    ? db.prepare('SELECT id, ts FROM events WHERE ts >= ? AND ts < ? AND source = ? ORDER BY ts ASC').all(from, to, source)
+    : db.prepare('SELECT id, ts FROM events WHERE ts >= ? AND ts < ? ORDER BY ts ASC').all(from, to);
 
   const buckets = new Map();
   for (const row of rows) {
     const b = bucketOf(Number(row.ts), level, tz);
     let bucket = buckets.get(b.start);
     if (!bucket) {
-      bucket = { level, start: b.start, end: b.end, key: b.key, count: 0, eventIds: [], maxId: 0 };
+      bucket = { level, start: b.start, end: b.end, key: b.key, count: 0, eventIds: [], maxId: 0, source: scope };
       buckets.set(b.start, bucket);
     }
     bucket.count += 1;
@@ -51,10 +54,10 @@ export function planRollup(db, opts = {}) {
     db
       .prepare(
         `SELECT bucket_start, covered_until FROM summaries
-          WHERE level = ? AND prompt_version = ? AND status = 'ready'
+          WHERE level = ? AND prompt_version = ? AND source = ? AND status = 'ready'
             AND bucket_start >= ? AND bucket_start < ?`,
       )
-      .all(level, promptVersion, from, to)
+      .all(level, promptVersion, scope, from, to)
       .map((r) => [Number(r.bucket_start), Number(r.covered_until ?? 0)]),
   );
 
@@ -94,10 +97,19 @@ export async function applyRollup(db, bucket, summarize, opts = {}) {
     text,
     status: result?.status ?? (text ? 'ready' : 'empty'),
     promptVersion,
+    source: bucket.source ?? 'all',
     model: result?.model ?? opts.model,
     sourceCount: events.length,
     coveredUntil: Math.max(0, ...events.map((e) => Number(e.id) || 0)),
   });
+}
+
+/** 一段时间里出现过的来源（用于"每个来源各摘一份"）。 */
+export function distinctEventSources(db, { from, to }) {
+  return db
+    .prepare('SELECT DISTINCT source FROM events WHERE ts >= ? AND ts < ? ORDER BY source')
+    .all(Number(from), Number(to))
+    .map((r) => r.source);
 }
 
 /** 便利方法：plan 里的每个桶依次 apply，返回成功/失败。 */

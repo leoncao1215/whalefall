@@ -88,6 +88,7 @@ export function buildContext(db, opts = {}) {
     from: opts.from,
     to: opts.to,
     status: 'ready',
+    source: 'all',
     limit: 3,
   });
   addBlock(

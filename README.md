@@ -11,7 +11,8 @@
 - **实体轴**：事件可以挂在人/物/主题上，检索时按实体过滤（"关于小鲸鱼的所有事"）。
 - **中文检索**：SQLite FTS5 `trigram`，≥3 字直接命中；1~2 字退化成 LIKE。
 - **时间桶**：按**用户时区**的日历切 day/week/month/year，不是 UTC。
-- **分层摘要**：`summaries` 按 `(level, bucket, prompt_version)` 唯一，可懒生成、可重算、旧版本保留。
+- **分层摘要**：`summaries` 按 `(level, bucket, prompt_version, source)` 唯一，可懒生成、可重算、旧版本保留；
+  每个来源（qq / web / agent）各一份，外加合并的 `all`。
 - **摘要链路**：`plan → summarizer → 写库`，摘要器可以是**任何命令**（读 stdin JSON、写 stdout 文本/JSON），先用 mock 也能跑通。
 - **查询计划**：自然语言问题 → 时间窗 / 实体 / 词项（2–3 字滑窗）→ 召回 + JS 重排；`whalefall ask "..."` 可直接用。
 - **上下文装配**：`buildContext()` 按预算拼「命中 → 摘要 → 最近」，每块带 id，超预算宁可少给。
@@ -85,7 +86,9 @@ node src/cli.mjs dream --hours 24 --summarizer "node scripts/deepseek-summarize.
 - 每个 turn 一条事件，`source` 标记来源（`qq` / `web`），检索时可以只查自己的；
 - 过滤掉 runtime 注入与工具调用，只留真正的对话；
 - `dedupeKey = sessionId:turn`，重复跑不会重复写；
-- 摘要记 `covered_until`，同一天来了新对话会自动重摘。
+- 摘要记 `covered_until`，同一天来了新对话会自动重摘；
+- 摘要按来源各切一份（`day/qq`、`day/web`、`day/agent`）+ 一份合并的 `day/all`，
+  用 `memory_summary --source qq` 只取自己那份。
 
 `--include-today` 才会摘今天（默认只摘已经过完的日子，避免凌晨摘一遍、晚上再摘一遍）。
 

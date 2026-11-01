@@ -15,7 +15,7 @@ import crypto from 'node:crypto';
 import { openDb, closeDb } from './db.mjs';
 import { addEvent, getEvent, hydrate } from './events.mjs';
 import { searchEvents, timeline, stats } from './search.mjs';
-import { planRollup, runRollup } from './rollup.mjs';
+import { distinctEventSources, planRollup, runRollup } from './rollup.mjs';
 import { createCommandSummarizer, createMockSummarizer, summarizerPayload } from './summarizer.mjs';
 import { buildContext } from './context.mjs';
 import { harvestSessions } from './harvest.mjs';
@@ -245,25 +245,26 @@ async function main() {
       const days = Number(flags.days) || 7;
       const from = flags.from ? parseTime(flags.from, tz) : to - days * 86400000;
       const promptVersion = String(flags['prompt-version'] || 'v1');
-      const plan = planRollup(db, { level, tz, from, to, promptVersion });
-      if (!plan.length) { console.log('没有待摘要的桶。'); return 0; }
-
-      const limit = Number(flags.limit) || plan.length;
-      const batch = plan.slice(0, limit);
-      console.log(`待摘要 ${batch.length} 个 ${level} 桶（共 ${plan.length} 个）`);
 
       let summarize;
       if (flags.mock) summarize = createMockSummarizer();
       else if (typeof flags.summarizer === 'string') {
         summarize = createCommandSummarizer(String(flags.summarizer), {
-          timeoutMs: Number(flags.timeout) || 60000,
+          timeoutMs: Number(flags.timeout) || 180000,
         });
       } else {
         throw new Error('rollup 需要 --summarizer "<命令>" 或 --mock');
       }
 
+      // 默认只摘合并视图；--source qq 只摘 qq；--per-source 每个来源 + 合并各摘一份
+      const scopes = flags['per-source']
+        ? [null, ...distinctEventSources(db, { from, to })]
+        : [typeof flags.source === 'string' && flags.source !== 'all' ? String(flags.source) : null];
+
       if (flags['dry-run']) {
-        const first = batch[0];
+        const plan = planRollup(db, { level, tz, from, to, promptVersion, source: scopes[0] });
+        if (!plan.length) { console.log('没有待摘要的桶。'); return 0; }
+        const first = plan[0];
         const events = first.eventIds
           .map((id) => db.prepare('SELECT * FROM events WHERE id = ?').get(id))
           .filter(Boolean)
@@ -272,10 +273,23 @@ async function main() {
         return 0;
       }
 
-      const { ok, failed } = await runRollup(db, batch, summarize, { promptVersion, tz });
-      console.log(`完成 ${ok.length} 个，失败 ${failed.length} 个`);
-      for (const f of failed) console.error(`  ✗ ${f.bucket.key}: ${f.error}`);
-      return failed.length ? 1 : 0;
+      let done = 0;
+      let failedCount = 0;
+      let any = false;
+      for (const scope of scopes) {
+        const plan = planRollup(db, { level, tz, from, to, promptVersion, source: scope });
+        if (!plan.length) continue;
+        any = true;
+        const limit = Number(flags.limit) || plan.length;
+        const batch = plan.slice(0, limit);
+        const { ok, failed } = await runRollup(db, batch, summarize, { promptVersion, tz });
+        done += ok.length;
+        failedCount += failed.length;
+        console.log(`${scope ?? 'all'}: 完成 ${ok.length}，失败 ${failed.length}`);
+        for (const f of failed) console.error(`  ✗ ${f.bucket.key}: ${f.error}`);
+      }
+      if (!any) console.log('没有待摘要的桶。');
+      return failedCount ? 1 : 0;
     }
 
     if (command === 'prompt') {
@@ -318,15 +332,27 @@ async function main() {
         // 默认只摘"已经过完的日子"：凌晨跑批时，今天的桶还只有几个小时，
         // 现在摘一遍、明天再摘一遍，纯属浪费调用。--include-today 可以强制包含今天。
         const to = flags['include-today'] ? Date.now() : startOf(Date.now(), 'day', tz);
-        const plan = planRollup(db, { level, tz, from, to });
-        if (!plan.length) { console.log('没有待摘要的桶。'); return 0; }
         const summarize = createCommandSummarizer(String(flags.summarizer), {
           timeoutMs: Number(flags.timeout) || 180000,
         });
-        const { ok, failed } = await runRollup(db, plan, summarize, { tz });
-        console.log(`摘要：完成 ${ok.length} 个，失败 ${failed.length} 个`);
-        for (const f of failed) console.error(`  ✗ ${f.bucket.key}: ${f.error}`);
-        return failed.length ? 1 : 0;
+
+        // 每个来源各摘一份，再加一份合并视图
+        const scopes = [null, ...distinctEventSources(db, { from, to })];
+        let done = 0;
+        let failedCount = 0;
+        let any = false;
+        for (const scope of scopes) {
+          const plan = planRollup(db, { level, tz, from, to, source: scope });
+          if (!plan.length) continue;
+          any = true;
+          const { ok, failed } = await runRollup(db, plan, summarize, { tz });
+          done += ok.length;
+          failedCount += failed.length;
+          console.log(`  ${scope ?? 'all'}: 完成 ${ok.length}，失败 ${failed.length}`);
+          for (const f of failed) console.error(`    ✗ ${f.bucket.key}: ${f.error}`);
+        }
+        console.log(any ? `摘要：完成 ${done} 个，失败 ${failedCount} 个` : '没有待摘要的桶。');
+        return failedCount ? 1 : 0;
       }
       return 0;
     }
@@ -550,7 +576,7 @@ async function main() {
       if (flags.json) { console.log(JSON.stringify(rows, null, 2)); return 0; }
       if (!rows.length) { console.log('还没有摘要。'); return 0; }
       for (const row of rows) {
-        console.log(`${formatLocal(row.bucketStart, tz)}  ${row.level}/${row.promptVersion}  ${row.sourceCount} 条`);
+        console.log(`${formatLocal(row.bucketStart, tz)}  ${row.level}/${row.source}  ${row.promptVersion}  ${row.sourceCount} 条`);
         console.log(`    ${row.text || '(空)'}\n`);
       }
       return 0;

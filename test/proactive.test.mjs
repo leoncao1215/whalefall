@@ -79,7 +79,7 @@ test('主动记录落库，migration v2 生效', () => {
   const db = openDb(':memory:');
   try {
     const version = db.prepare('PRAGMA user_version').get().user_version;
-    assert.equal(Number(version), 3);
+    assert.equal(Number(version), 4);
     const id = recordProactiveSend(db, { ts: at('2026-11-01T09:00:00+08:00'), text: '早，今天有雨' });
     assert.ok(id > 0);
     const rows = proactiveHistory(db);

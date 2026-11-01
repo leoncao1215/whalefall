@@ -119,10 +119,45 @@ const SCHEMA_V3 = `
 ALTER TABLE summaries ADD COLUMN covered_until INTEGER NOT NULL DEFAULT 0;
 `;
 
+const SCHEMA_V4 = `
+-- 摘要按来源切分：'all' 是合并版，qq/web 各自一份。
+-- UNIQUE 约束没法 ALTER，所以重建表再搬数据。
+CREATE TABLE summaries_v4 (
+  id             INTEGER PRIMARY KEY,
+  uid            TEXT    NOT NULL UNIQUE,
+  level          TEXT    NOT NULL,
+  bucket_start   INTEGER NOT NULL,
+  bucket_end     INTEGER NOT NULL,
+  tz             TEXT    NOT NULL,
+  text           TEXT    NOT NULL DEFAULT '',
+  status         TEXT    NOT NULL DEFAULT 'ready',
+  prompt_version TEXT    NOT NULL,
+  model          TEXT,
+  source_count   INTEGER NOT NULL DEFAULT 0,
+  covered_until  INTEGER NOT NULL DEFAULT 0,
+  source         TEXT    NOT NULL DEFAULT 'all',
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL,
+  UNIQUE(level, bucket_start, prompt_version, source)
+) STRICT;
+
+INSERT INTO summaries_v4
+  (id, uid, level, bucket_start, bucket_end, tz, text, status, prompt_version,
+   model, source_count, covered_until, source, created_at, updated_at)
+SELECT id, uid, level, bucket_start, bucket_end, tz, text, status, prompt_version,
+       model, source_count, covered_until, 'all', created_at, updated_at
+  FROM summaries;
+
+DROP TABLE summaries;
+ALTER TABLE summaries_v4 RENAME TO summaries;
+CREATE INDEX idx_summaries_level ON summaries(level, bucket_start);
+`;
+
 const MIGRATIONS = [
   { version: 1, sql: SCHEMA_V1 },
   { version: 2, sql: SCHEMA_V2 },
   { version: 3, sql: SCHEMA_V3 },
+  { version: 4, sql: SCHEMA_V4 },
 ];
 
 /** @returns {number} 迁移后的 schema 版本 */

@@ -20,29 +20,30 @@ export function upsertSummary(db, input) {
   const model = input.model ? String(input.model) : null;
   const sourceCount = Number(input.sourceCount ?? 0);
   const coveredUntil = Number(input.coveredUntil ?? 0);
+  const source = String(input.source ?? 'all');
 
   const existing = db
-    .prepare('SELECT id FROM summaries WHERE level = ? AND bucket_start = ? AND prompt_version = ?')
-    .get(level, bucket.start, promptVersion);
+    .prepare('SELECT id FROM summaries WHERE level = ? AND bucket_start = ? AND prompt_version = ? AND source = ?')
+    .get(level, bucket.start, promptVersion, source);
 
   if (existing) {
     db.prepare(
       `UPDATE summaries
           SET bucket_end = ?, tz = ?, text = ?, status = ?, model = ?,
-              source_count = ?, covered_until = ?, updated_at = ?
+              source_count = ?, covered_until = ?, source = ?, updated_at = ?
         WHERE id = ?`,
-    ).run(bucket.end, tz, text, status, model, sourceCount, coveredUntil, now, existing.id);
+    ).run(bucket.end, tz, text, status, model, sourceCount, coveredUntil, source, now, existing.id);
     return getSummary(db, Number(existing.id));
   }
 
   const result = db.prepare(
     `INSERT INTO summaries
        (uid, level, bucket_start, bucket_end, tz, text, status, prompt_version,
-        model, source_count, covered_until, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        model, source_count, covered_until, source, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     crypto.randomUUID(), level, bucket.start, bucket.end, tz, text, status,
-    promptVersion, model, sourceCount, coveredUntil, now, now,
+    promptVersion, model, sourceCount, coveredUntil, source, now, now,
   );
   return getSummary(db, Number(result.lastInsertRowid));
 }
@@ -66,12 +67,13 @@ export function hydrateSummary(row) {
     model: row.model,
     sourceCount: Number(row.source_count),
     coveredUntil: Number(row.covered_until ?? 0),
+    source: row.source,
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
   };
 }
 
-export function listSummaries(db, { level, from, to, promptVersion, status, limit = 100 } = {}) {
+export function listSummaries(db, { level, from, to, promptVersion, status, source, limit = 100 } = {}) {
   const where = [];
   const params = [];
   if (level) {
@@ -94,6 +96,10 @@ export function listSummaries(db, { level, from, to, promptVersion, status, limi
     where.push('status = ?');
     params.push(String(status));
   }
+  if (source) {
+    where.push('source = ?');
+    params.push(String(source));
+  }
   const sql = `SELECT * FROM summaries
                ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
                ORDER BY bucket_start DESC LIMIT ?`;
@@ -102,12 +108,12 @@ export function listSummaries(db, { level, from, to, promptVersion, status, limi
 }
 
 /** 某个时刻所在层级的摘要（用于"停在哪一层"的导航）。 */
-export function summaryAt(db, ts, level, { promptVersion, tz = DEFAULT_TZ } = {}) {
+export function summaryAt(db, ts, level, { promptVersion, tz = DEFAULT_TZ, source = 'all' } = {}) {
   const bucket = bucketOf(Number(ts), level, tz);
   const row = promptVersion
-    ? db.prepare("SELECT * FROM summaries WHERE level = ? AND bucket_start = ? AND prompt_version = ? AND status = 'ready'")
-      .get(level, bucket.start, promptVersion)
-    : db.prepare("SELECT * FROM summaries WHERE level = ? AND bucket_start = ? AND status = 'ready' ORDER BY updated_at DESC LIMIT 1")
-      .get(level, bucket.start);
+    ? db.prepare("SELECT * FROM summaries WHERE level = ? AND bucket_start = ? AND prompt_version = ? AND source = ? AND status = 'ready'")
+      .get(level, bucket.start, promptVersion, source)
+    : db.prepare("SELECT * FROM summaries WHERE level = ? AND bucket_start = ? AND source = ? AND status = 'ready' ORDER BY updated_at DESC LIMIT 1")
+      .get(level, bucket.start, source);
   return row ? hydrateSummary(row) : null;
 }
