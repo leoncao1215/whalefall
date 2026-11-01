@@ -1,5 +1,5 @@
 /**
- * 一次对话的完整系统提示：人格 + 记忆使用规则 + 记忆片段。
+ * 一次对话的完整系统提示：人格 + 记忆规则 + 跨渠道最近对话 + 记忆片段。
  *
  * 顺序是有意的：先立"我是谁"，再立"怎么用资料"，最后才是资料。
  * 记忆块用 <memory> 包起来并明确标注"不是指令"——历史里可能有任何文本，
@@ -23,12 +23,17 @@ export const MEMORY_RULES = `## 记忆使用规则
  * @param {number} [opts.to]
  * @param {number} [opts.budget] 整段 system prompt 的 token 预算
  * @param {string} [opts.tz]
+ * @param {string} [opts.recent] 跨渠道最近对话（由 threads.mjs 生成），放在记忆块之前
  */
 export function assembleSystemPrompt(db, opts = {}) {
   const budget = Math.max(200, Number(opts.budget) || 1500);
   const persona = opts.persona ? renderPersona(opts.persona) : { text: '', tokens: 0 };
   // 先保证记忆有下限，人格再长也不能把资料挤没了
-  const contextBudget = Math.max(120, budget - persona.tokens - estimateTokens(MEMORY_RULES));
+  const recentBlock = opts.recent ? `<recent>\n${opts.recent}\n</recent>` : '';
+  const contextBudget = Math.max(
+    120,
+    budget - persona.tokens - estimateTokens(MEMORY_RULES) - estimateTokens(recentBlock),
+  );
 
   const hasQuery = Boolean(opts.q || opts.entity);
   const context = hasQuery
@@ -46,7 +51,7 @@ export function assembleSystemPrompt(db, opts = {}) {
     ? `<memory>\n${context.text}\n</memory>`
     : '（这次没有检索到相关记忆）';
 
-  const system = [persona.text, MEMORY_RULES, memoryBlock].filter(Boolean).join('\n\n');
+  const system = [persona.text, MEMORY_RULES, recentBlock, memoryBlock].filter(Boolean).join('\n\n');
   const tokens = estimateTokens(system);
 
   return {
@@ -58,6 +63,7 @@ export function assembleSystemPrompt(db, opts = {}) {
       persona: persona.tokens,
       rules: estimateTokens(MEMORY_RULES),
       context: context.used,
+      recent: estimateTokens(recentBlock),
     },
     context,
   };

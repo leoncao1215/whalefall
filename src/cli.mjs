@@ -26,6 +26,7 @@ import { rebuildFromSessions, verifyHarvest } from './verify.mjs';
 import { readQqConfig } from './qq-send.mjs';
 import { listPersonas, loadPersona, renderPersona } from './persona.mjs';
 import { assembleSystemPrompt } from './assemble.mjs';
+import { renderRecentThreads } from './threads.mjs';
 import { evaluateProactive, proactiveHistory, recordProactiveSend } from './proactive.mjs';
 import { callTool, TOOL_DEFINITIONS } from './tools.mjs';
 import { buildProactivePrompt, createCommandComposer, proactiveTick } from './tick.mjs';
@@ -320,6 +321,7 @@ async function main() {
         entity: flags.entity,
         budget: Number(flags.budget) || 1500,
         tz,
+        recent: flags.recent === false ? '' : renderRecentThreads(db, { tz, limit: 8 }),
       });
       if (flags.json) { console.log(JSON.stringify(out, null, 2)); return 0; }
       console.log(out.system);

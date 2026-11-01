@@ -13,6 +13,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { addEvent } from './events.mjs';
 import { assembleSystemPrompt } from './assemble.mjs';
+import { renderRecentThreads } from './threads.mjs';
 import { proactiveSince } from './proactive.mjs';
 import { listSummaries } from './summaries.mjs';
 import { runSummarizerCommand } from './summarizer.mjs';
@@ -105,6 +106,7 @@ export function createGateway(opts) {
       q: text,
       budget: contextBudget,
       tz,
+      recent: renderRecentThreads(db, { tz, limit: 8, excludeSessionId: body.sessionId ? String(body.sessionId) : undefined }),
     });
 
     let reply = '';
