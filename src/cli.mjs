@@ -14,6 +14,7 @@ import { addEvent, getEvent } from './events.mjs';
 import { searchEvents, timeline, stats } from './search.mjs';
 import { planRollup } from './rollup.mjs';
 import { listSummaries } from './summaries.mjs';
+import { readJsonl, runQuestions, seedCorpus, writeReport } from './eval.mjs';
 import { bucketOf, DEFAULT_TZ, formatLocal, parseTime, startOf } from './time.mjs';
 
 const USAGE = `用法：
@@ -25,6 +26,8 @@ const USAGE = `用法：
   whalefall plan [--level day|week|month] [--from <时间>] [--to <时间>] [--days <n>]
   whalefall summaries [--level <层级>] [--limit <n>] [--json]
   whalefall stats [--json]
+  whalefall eval [--corpus eval/corpus.jsonl] [--questions eval/questions.jsonl]
+                 [--hard eval/questions-hard.jsonl] [--k 5] [--out eval/report.md] [--json]
   whalefall export [--out <文件>]
 
 全局：--db <路径>（默认 data/whalefall.db，或环境变量 WHALEFALL_DB）
@@ -70,6 +73,19 @@ function fmtEvent(e) {
   return `${head}${body}${actors}`;
 }
 
+function printReport(title, report) {
+  console.log(`\n【${title}】recall@${report.k}: ${(report.recall * 100).toFixed(1)}%  (${report.hits}/${report.total})  MRR ${report.mrr.toFixed(3)}  p95 ${report.latency.p95.toFixed(1)}ms`);
+  for (const r of report.results) {
+    const mark = r.hit ? '✅' : '❌';
+    const rank = r.rank == null ? '' : `  第 ${r.rank + 1} 名 ${r.ms.toFixed(1)}ms`;
+    console.log(`${mark} ${r.id}  ${r.question}${rank}`);
+    if (!r.hit) {
+      const top = r.top.map((t) => `#${t.id} ${t.title}`).join(' | ') || '空';
+      console.log(`     期望 ${r.expected.join(', ') || '(无)'}；实际 ${top}`);
+    }
+  }
+}
+
 function main() {
   const { flags, positional } = parseArgs(process.argv.slice(2));
   const command = positional[0];
@@ -79,7 +95,9 @@ function main() {
   }
 
   const tz = String(flags.tz || DEFAULT_TZ);
-  const db = openDb(flags.db ? String(flags.db) : undefined);
+  // 评测默认用内存库，避免把测试语料写进真实记忆
+  const dbPath = flags.db ? String(flags.db) : (command === 'eval' ? ':memory:' : undefined);
+  const db = openDb(dbPath);
 
   try {
     if (command === 'add') {
@@ -171,6 +189,29 @@ function main() {
       }
       if (data.bySource.length) console.log(`来源：${data.bySource.map((x) => `${x.source}(${x.count})`).join('  ')}`);
       if (data.byKind.length) console.log(`类型：${data.byKind.map((x) => `${x.kind}(${x.count})`).join('  ')}`);
+      return 0;
+    }
+
+    if (command === 'eval') {
+      const corpusFile = String(flags.corpus || 'eval/corpus.jsonl');
+      const easyFile = String(flags.questions || 'eval/questions.jsonl');
+      const hardFile = flags.hard === false ? null : String(flags.hard || 'eval/questions-hard.jsonl');
+      const corpus = readJsonl(corpusFile);
+      const easy = readJsonl(easyFile);
+      const hard = hardFile && fs.existsSync(hardFile) ? readJsonl(hardFile) : null;
+      const map = seedCorpus(db, corpus, { tz });
+      const k = Number(flags.k) || 5;
+      const suite = {
+        easy: runQuestions(db, map, easy, { k, tz }),
+        hard: hard ? runQuestions(db, map, hard, { k, tz }) : null,
+      };
+      if (flags.json) { console.log(JSON.stringify(suite, null, 2)); return 0; }
+      printReport('关键词基线', suite.easy);
+      if (suite.hard) printReport('换句话问（考语义）', suite.hard);
+      if (flags.out) {
+        writeReport(String(flags.out), suite, { generatedAt: new Date().toISOString() });
+        console.log(`报告已写入 ${flags.out}`);
+      }
       return 0;
     }
 

@@ -1,0 +1,5 @@
+{"id":"h01","question":"我前阵子练的那个动作，现在能拉多重？","query":"拉 多重","expected":["e14"]}
+{"id":"h02","question":"家里寄来的土特产我怎么吃的？","query":"土特产","expected":["e23"]}
+{"id":"h03","question":"那只橘色的小动物我喂了什么？","query":"小动物 喂","expected":["e16"]}
+{"id":"h04","question":"和朋友吃辣那次辣到什么程度？","query":"吃辣 程度","expected":["e06"]}
+{"id":"h05","question":"提醒我别喝冰的那个人是谁？","query":"喝冰","expected":["e24"]}

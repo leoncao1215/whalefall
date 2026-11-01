@@ -10,6 +10,7 @@
   },
   "scripts": {
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.mjs",
-    "cli": "node --disable-warning=ExperimentalWarning src/cli.mjs"
+    "cli": "node --disable-warning=ExperimentalWarning src/cli.mjs",
+    "eval": "node --disable-warning=ExperimentalWarning src/cli.mjs eval --out eval/report.md"
   }
 }
