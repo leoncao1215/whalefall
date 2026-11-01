@@ -14,6 +14,7 @@ import { addEvent, getEvent, hydrate } from './events.mjs';
 import { searchEvents, timeline, stats } from './search.mjs';
 import { planRollup, runRollup } from './rollup.mjs';
 import { createCommandSummarizer, createMockSummarizer, summarizerPayload } from './summarizer.mjs';
+import { buildContext } from './context.mjs';
 import { listSummaries } from './summaries.mjs';
 import { readJsonl, runQuestions, seedCorpus, writeReport } from './eval.mjs';
 import { bucketOf, DEFAULT_TZ, formatLocal, parseTime, startOf } from './time.mjs';
@@ -27,6 +28,7 @@ const USAGE = `用法：
   whalefall plan [--level day|week|month] [--from <时间>] [--to <时间>] [--days <n>]
   whalefall rollup --summarizer <命令> | --mock [--level day|week|month]
                  [--from <时间>] [--to <时间>] [--days <n>] [--limit <n>] [--dry-run]
+  whalefall context <关键词> [--budget <tokens>] [--hits <n>] [--json]
   whalefall summaries [--level <层级>] [--limit <n>] [--json]
   whalefall stats [--json]
   whalefall eval [--corpus eval/corpus.jsonl] [--questions eval/questions.jsonl]
@@ -209,6 +211,21 @@ async function main() {
       console.log(`完成 ${ok.length} 个，失败 ${failed.length} 个`);
       for (const f of failed) console.error(`  ✗ ${f.bucket.key}: ${f.error}`);
       return failed.length ? 1 : 0;
+    }
+
+    if (command === 'context') {
+      const q = positional.slice(1).join(' ');
+      if (!q) throw new Error('context 需要一个关键词（或用 --entity）');
+      const ctx = buildContext(db, {
+        q,
+        entity: flags.entity,
+        budget: Number(flags.budget) || 800,
+        hits: Number(flags.hits) || 5,
+      });
+      if (flags.json) { console.log(JSON.stringify(ctx, null, 2)); return 0; }
+      console.log(ctx.text || '(没有可注入的记忆)');
+      console.log(`\n-- ${ctx.used}/${ctx.budget} tokens`);
+      return 0;
     }
 
     if (command === 'summaries') {

@@ -2,7 +2,7 @@
 
 > 给 agent 一套真正记得住的记忆：**原文永远沉底，摘要按层分解，检索按需下潜。**
 >
-> 状态：P1 完成 · P2 完成 · P3 检索评测基线已跑通 · 最后更新 2026-11-01
+> 状态：P1 完成 · P2 完成 · P3 进行中（评测基线 + 装配已就绪）· 最后更新 2026-11-01
 
 ---
 
@@ -124,9 +124,11 @@ node src/cli.mjs timeline 2026-11-01
 `buildContext()`：user card + 最近 N 条 + 工具结果；`memory.search/timeline/get` 三个工具。
 
 已完成：`src/eval.mjs` + 合成语料（30 条）+ 两套题（15 关键词 / 5 换句话），
-基线 `eval/report.md`：关键词 100%、换句话 0%。
+基线 `eval/report.md`：关键词 100%、换句话 0%；`src/context.mjs` 装配层（预算内拼命中/摘要/最近）。
 
 **结论**：瓶颈不在检索算法，在"把问题翻译成查询"。P3 下一步做 query planning，再谈向量。
+
+**剩余**：query planning（把问题变成查询计划）、memory.search/timeline/get 三个工具。
 
 **验收**：30 题评测集跑出 recall@5 基线并记录到 `eval/report.md`。
 
