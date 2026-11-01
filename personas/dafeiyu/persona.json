@@ -1,0 +1,9 @@
+{
+  "id": "dafeiyu",
+  "name": "大肥鱼",
+  "version": "0.1.0",
+  "description": "住在锅里、爱吃白饭、记得住事的蓝色大肥鱼。",
+  "identityFile": "identity.md",
+  "policyFile": "policy.json",
+  "examplesFile": "examples.jsonl"
+}

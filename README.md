@@ -14,6 +14,7 @@
 - **分层摘要**：`summaries` 按 `(level, bucket, prompt_version)` 唯一，可懒生成、可重算、旧版本保留。
 - **摘要链路**：`plan → summarizer → 写库`，摘要器可以是**任何命令**（读 stdin JSON、写 stdout 文本/JSON），先用 mock 也能跑通。
 - **上下文装配**：`buildContext()` 按预算拼「命中 → 摘要 → 最近」，每块带 id，超预算宁可少给。
+- **人格包**：`identity.md` + `policy.json` + `examples.jsonl`，可渲染成系统提示词；示例是大肥鱼本人。
 - **CLI**：`add / search / timeline / context / plan / rollup / summaries / stats / eval / export`。
 
 还没有的：上下文装配、人格包、主动机制、桌宠/QQ 入口（见 [docs/PLAN.md](docs/PLAN.md) 的 P3 之后）。
@@ -33,6 +34,7 @@ node src/cli.mjs timeline 2026-11-01
 node src/cli.mjs stats
 node src/cli.mjs plan --level day --days 7
 node src/cli.mjs context 猪脚饭 --budget 300
+node src/cli.mjs persona --dir personas/dafeiyu
 ```
 
 ## 接模型（或任何命令）
@@ -68,8 +70,10 @@ src/summaries.mjs  摘要读写与版本
 src/rollup.mjs     桶规划与摘要应用
 src/summarizer.mjs 摘要器适配层（任意命令 / mock）
 src/context.mjs    上下文装配与 token 预算
+src/persona.mjs    人格包加载与渲染
 src/eval.mjs       检索评测
 src/cli.mjs        命令行
+personas/          人格包（dafeiyu 是示例）
 test/              node:test
 ```
 

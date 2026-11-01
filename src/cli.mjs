@@ -15,6 +15,7 @@ import { searchEvents, timeline, stats } from './search.mjs';
 import { planRollup, runRollup } from './rollup.mjs';
 import { createCommandSummarizer, createMockSummarizer, summarizerPayload } from './summarizer.mjs';
 import { buildContext } from './context.mjs';
+import { listPersonas, loadPersona, renderPersona } from './persona.mjs';
 import { listSummaries } from './summaries.mjs';
 import { readJsonl, runQuestions, seedCorpus, writeReport } from './eval.mjs';
 import { bucketOf, DEFAULT_TZ, formatLocal, parseTime, startOf } from './time.mjs';
@@ -29,6 +30,8 @@ const USAGE = `用法：
   whalefall rollup --summarizer <命令> | --mock [--level day|week|month]
                  [--from <时间>] [--to <时间>] [--days <n>] [--limit <n>] [--dry-run]
   whalefall context <关键词> [--budget <tokens>] [--hits <n>] [--json]
+  whalefall persona [--dir personas/dafeiyu] [--json]
+  whalefall personas [--dir personas] [--json]
   whalefall summaries [--level <层级>] [--limit <n>] [--json]
   whalefall stats [--json]
   whalefall eval [--corpus eval/corpus.jsonl] [--questions eval/questions.jsonl]
@@ -101,7 +104,8 @@ async function main() {
 
   const tz = String(flags.tz || DEFAULT_TZ);
   // 评测默认用内存库，避免把测试语料写进真实记忆
-  const dbPath = flags.db ? String(flags.db) : (command === 'eval' ? ':memory:' : undefined);
+  const inMemory = command === 'eval' || command === 'persona' || command === 'personas';
+  const dbPath = flags.db ? String(flags.db) : (inMemory ? ':memory:' : undefined);
   const db = openDb(dbPath);
 
   try {
@@ -211,6 +215,30 @@ async function main() {
       console.log(`完成 ${ok.length} 个，失败 ${failed.length} 个`);
       for (const f of failed) console.error(`  ✗ ${f.bucket.key}: ${f.error}`);
       return failed.length ? 1 : 0;
+    }
+
+    if (command === 'persona') {
+      const dir = String(flags.dir || 'personas/dafeiyu');
+      const persona = loadPersona(dir);
+      const rendered = renderPersona(persona);
+      if (flags.json) {
+        console.log(JSON.stringify({
+          id: persona.id, name: persona.name, version: persona.version,
+          examples: persona.examples.length, tokens: rendered.tokens, text: rendered.text,
+        }, null, 2));
+        return 0;
+      }
+      console.log(rendered.text);
+      console.log(`\n-- ${rendered.tokens} tokens · v${persona.version}`);
+      return 0;
+    }
+
+    if (command === 'personas') {
+      const list = listPersonas(String(flags.dir || 'personas'));
+      if (flags.json) { console.log(JSON.stringify(list, null, 2)); return 0; }
+      if (!list.length) { console.log('没有找到人格包。'); return 0; }
+      for (const p of list) console.log(`${p.name}  (${p.id} v${p.version})  ${p.dir}`);
+      return 0;
     }
 
     if (command === 'context') {
