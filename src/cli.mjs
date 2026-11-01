@@ -18,6 +18,7 @@ import { buildContext } from './context.mjs';
 import { listPersonas, loadPersona, renderPersona } from './persona.mjs';
 import { assembleSystemPrompt } from './assemble.mjs';
 import { evaluateProactive, proactiveHistory, recordProactiveSend } from './proactive.mjs';
+import { callTool, TOOL_DEFINITIONS } from './tools.mjs';
 import { listSummaries } from './summaries.mjs';
 import { readJsonl, runQuestions, seedCorpus, writeReport } from './eval.mjs';
 import { bucketOf, DEFAULT_TZ, formatLocal, parseTime, startOf } from './time.mjs';
@@ -37,6 +38,8 @@ const USAGE = `用法：
   whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
   whalefall proactive log [--json]
+  whalefall tool <工具名> [--args '<json>'] [--json]
+  whalefall tools [--json]
   whalefall summaries [--level <层级>] [--limit <n>] [--json]
   whalefall stats [--json]
   whalefall eval [--corpus eval/corpus.jsonl] [--questions eval/questions.jsonl]
@@ -237,6 +240,29 @@ async function main() {
       console.log(out.system);
       console.log(`\n-- ${out.tokens}/${out.budget} tokens${out.overBudget ? '（超预算）' : ''}`);
       return 0;
+    }
+
+    if (command === 'tools') {
+      if (flags.json) { console.log(JSON.stringify(TOOL_DEFINITIONS, null, 2)); return 0; }
+      for (const t of TOOL_DEFINITIONS) console.log(`${t.name}  —  ${t.description}`);
+      return 0;
+    }
+
+    if (command === 'tool') {
+      const name = positional[1];
+      if (!name) throw new Error('tool 需要一个工具名（whalefall tools 查看）');
+      let args = {};
+      if (typeof flags.args === 'string') {
+        try { args = JSON.parse(flags.args); } catch (e) { throw new Error(`--args 不是合法 JSON：${e.message}`); }
+      }
+      for (const [key, value] of Object.entries(flags)) {
+        if (['args', 'db', 'json', 'tz'].includes(key)) continue;
+        if (value === true || value === false) continue;
+        args[key] = value;
+      }
+      const result = callTool(db, name, args, { tz });
+      console.log(JSON.stringify(result, null, 2));
+      return result.ok === false ? 1 : 0;
     }
 
     if (command === 'proactive') {

@@ -2,7 +2,7 @@
 
 > 给 agent 一套真正记得住的记忆：**原文永远沉底，摘要按层分解，检索按需下潜。**
 >
-> 状态：P1/P2/P4 完成 · P3 进行中 · P5 闸门已完成，缺触发器 · 最后更新 2026-11-01
+> 状态：P1/P2/P3(工具)/P4 完成 · P5 闸门完成、缺触发器 · 最后更新 2026-11-01
 
 ---
 
@@ -128,7 +128,9 @@ node src/cli.mjs timeline 2026-11-01
 
 **结论**：瓶颈不在检索算法，在"把问题翻译成查询"。P3 下一步做 query planning，再谈向量。
 
-**剩余**：query planning（把问题变成查询计划）、memory.search/timeline/get 三个工具。
+已完成：`memory_*` 七个工具（search/timeline/get/summary/remember/forget/stats）+ `forget` 的派生层标脏。
+
+**剩余**：query planning（把问题变成查询计划）。
 
 **验收**：30 题评测集跑出 recall@5 基线并记录到 `eval/report.md`。
 

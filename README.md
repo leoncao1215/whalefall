@@ -17,6 +17,8 @@
 - **人格包**：`identity.md` + `policy.json` + `examples.jsonl`，可渲染成系统提示词；示例是大肥鱼本人。
 - **系统提示装配**：人格 + 记忆规则 + `<memory>` 数据块，按预算裁剪；记忆明确标成数据而不是指令。
 - **主动闸门**：安静时段（支持跨午夜）/ 每日上限 / 最小间隔 / 用户在聊，默认不说话。
+- **工具门面**：7 个 `memory_*` 工具（search / timeline / get / summary / remember / forget / stats），带 JSON Schema，可直接挂到 DSH 或 MCP。
+- **真删除**：`memory_forget` 删原文，并把覆盖该时刻的摘要标脏（stale），下次 rollup 会重算。
 - **CLI**：`add / search / timeline / context / plan / rollup / summaries / stats / eval / export`。
 
 还没有的：上下文装配、人格包、主动机制、桌宠/QQ 入口（见 [docs/PLAN.md](docs/PLAN.md) 的 P3 之后）。
@@ -39,6 +41,8 @@ node src/cli.mjs context 猪脚饭 --budget 300
 node src/cli.mjs persona --dir personas/dafeiyu
 node src/cli.mjs prompt 猪脚饭 --budget 900
 node src/cli.mjs proactive check --now 2026-11-01T23:40
+node src/cli.mjs tools
+node src/cli.mjs tool memory_search --q 猪脚饭
 ```
 
 ## 接模型（或任何命令）
@@ -77,6 +81,8 @@ src/context.mjs    上下文装配与 token 预算
 src/persona.mjs    人格包加载与渲染
 src/assemble.mjs   人格 + 记忆规则 + 数据块 → system prompt
 src/proactive.mjs  主动闸门与流水
+src/tools.mjs      模型可调的工具门面（memory_*）
+src/forget.mjs     删除与派生摘要标脏
 src/eval.mjs       检索评测
 src/cli.mjs        命令行
 personas/          人格包（dafeiyu 是示例）
