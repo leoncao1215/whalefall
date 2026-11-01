@@ -78,27 +78,3 @@ export function listSecrets(file) {
   const data = readSecrets(file);
   return Object.keys(data).sort().map((key) => ({ key, masked: mask(data[key]) }));
 }
-
-/**
- * QQ 凭据：环境变量优先，其次密钥文件。
- * 缺什么就明确说缺什么，别让调用方拿到空字符串去发请求。
- */
-export function getQqCredentials({ env = process.env, file } = {}) {
-  const data = readSecrets(file);
-  return {
-    appId: String(env.QQ_APP_ID || data['qq.appId'] || ''),
-    appSecret: String(env.QQ_APP_SECRET || data['qq.appSecret'] || ''),
-    publicKey: String(env.QQ_PUBLIC_KEY || data['qq.publicKey'] || ''),
-  };
-}
-
-export function requireQqCredentials(opts) {
-  const creds = getQqCredentials(opts);
-  const missing = [];
-  if (!creds.appId) missing.push('qq.appId');
-  if (!creds.appSecret) missing.push('qq.appSecret');
-  if (missing.length) {
-    throw new Error(`缺少 QQ 凭据：${missing.join('、')}（用 whalefall secret set 写入，或设置 QQ_APP_ID / QQ_APP_SECRET）`);
-  }
-  return creds;
-}

@@ -70,7 +70,7 @@ node src/cli.mjs secret list      # 只显示掩码
 > bash 的 `read -p` 在 zsh 里是另一个意思（读协进程），会报 `read: -p: no coprocess`；
 > 用 `--prompt` 就不用操心 shell 差异。
 
-环境变量名：`QQ_APP_ID`、`QQ_APP_SECRET`、`QQ_PUBLIC_KEY`（临时注入/CI 用）。
+需要临时注入时，读取方可以直接用环境变量（不走文件），例如 `WHALEFALL_SECRETS` 指定别的路径。
 
 ## 桌宠网关（跨机）
 

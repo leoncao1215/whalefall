@@ -4,8 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  deleteSecret, getQqCredentials, listSecrets, mask, readSecrets,
-  requireQqCredentials, setSecret, writeSecrets,
+  deleteSecret, listSecrets, mask, readSecrets, setSecret, writeSecrets,
 } from '../src/secrets.mjs';
 
 function tmpFile() {
@@ -51,23 +50,4 @@ test('非法键名与空值被拒绝', () => {
   const file = tmpFile();
   assert.throws(() => setSecret('QQ Secret', 'x', file), /不合法/);
   assert.throws(() => setSecret('qq.appSecret', '   ', file), /为空/);
-});
-
-test('getQqCredentials：环境变量优先，其次文件', () => {
-  const file = tmpFile();
-  writeSecrets({ 'qq.appId': 'file-id', 'qq.appSecret': 'file-secret' }, file);
-
-  const fromFile = getQqCredentials({ env: {}, file });
-  assert.equal(fromFile.appId, 'file-id');
-
-  const fromEnv = getQqCredentials({ env: { QQ_APP_ID: 'env-id', QQ_APP_SECRET: 'env-secret' }, file });
-  assert.equal(fromEnv.appId, 'env-id');
-  assert.equal(fromEnv.appSecret, 'env-secret');
-});
-
-test('requireQqCredentials 明确指出缺什么', () => {
-  const file = tmpFile();
-  assert.throws(() => requireQqCredentials({ env: {}, file }), /qq\.appId、qq\.appSecret/);
-  writeSecrets({ 'qq.appId': 'id', 'qq.appSecret': 'secret' }, file);
-  assert.equal(requireQqCredentials({ env: {}, file }).appId, 'id');
 });
