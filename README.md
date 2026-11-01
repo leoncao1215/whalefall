@@ -72,6 +72,23 @@ node src/cli.mjs secret list      # 只显示掩码
 
 需要临时注入时，读取方可以直接用环境变量（不走文件），例如 `WHALEFALL_SECRETS` 指定别的路径。
 
+## 做梦：把会话归档成记忆
+
+`rollup` 只处理 `events`；`dream` 多一步**采集**——扫 DSH 的会话日志，把对话变成事件，再摘。
+
+```bash
+node src/cli.mjs dream --hours 24 --dry-run          # 先看会归档多少
+node src/cli.mjs dream --hours 24                    # 只归档
+node src/cli.mjs dream --hours 24 --summarizer "node scripts/deepseek-summarize.mjs"
+```
+
+- 每个 turn 一条事件，`source` 标记来源（`qq` / `web`），检索时可以只查自己的；
+- 过滤掉 runtime 注入与工具调用，只留真正的对话；
+- `dedupeKey = sessionId:turn`，重复跑不会重复写；
+- 摘要记 `covered_until`，同一天来了新对话会自动重摘。
+
+`--include-today` 才会摘今天（默认只摘已经过完的日子，避免凌晨摘一遍、晚上再摘一遍）。
+
 ## 桌宠网关（跨机）
 
 ```bash

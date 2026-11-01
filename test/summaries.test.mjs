@@ -55,6 +55,29 @@ test('rollup：plan → apply → 再 plan 为空 → 换版本再来一遍', as
   }
 });
 
+test('同一天新增事件后，需要重新摘要', async () => {
+  const db = fresh();
+  try {
+    const { from, to } = seedThreeDays(db);
+    const summarize = async ({ bucket, events }) => ({ text: `${bucket.key}：${events.length} 条` });
+
+    const first = planRollup(db, { level: 'day', tz: SH, from, to });
+    await runRollup(db, first, summarize, { tz: SH });
+    assert.equal(planRollup(db, { level: 'day', tz: SH, from, to }).length, 0);
+
+    // 同一天又来了一条新对话
+    const base = Date.parse('2026-11-01T00:00:00+08:00');
+    addEvent(db, { title: '新事件', body: '夜里又聊了两句', ts: base + 22 * 3600000, tz: SH });
+
+    const again = planRollup(db, { level: 'day', tz: SH, from, to });
+    assert.equal(again.length, 1);
+    assert.equal(again[0].key, '2026-11-01');
+    assert.equal(again[0].count, 2);
+  } finally {
+    closeDb(db);
+  }
+});
+
 test('单桶失败不影响其它桶', async () => {
   const db = fresh();
   try {

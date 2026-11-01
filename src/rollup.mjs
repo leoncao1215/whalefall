@@ -37,26 +37,29 @@ export function planRollup(db, opts = {}) {
     const b = bucketOf(Number(row.ts), level, tz);
     let bucket = buckets.get(b.start);
     if (!bucket) {
-      bucket = { level, start: b.start, end: b.end, key: b.key, count: 0, eventIds: [] };
+      bucket = { level, start: b.start, end: b.end, key: b.key, count: 0, eventIds: [], maxId: 0 };
       buckets.set(b.start, bucket);
     }
     bucket.count += 1;
+    bucket.maxId = Math.max(bucket.maxId, Number(row.id));
     if (bucket.eventIds.length < maxEventIds) bucket.eventIds.push(Number(row.id));
   }
 
-  const done = new Set(
+  // 已摘过的桶，只有在"覆盖到的事件 id >= 桶里最新事件 id"时才算完成；
+  // 否则说明又归档了新对话，需要重摘。
+  const covered = new Map(
     db
       .prepare(
-        `SELECT bucket_start FROM summaries
+        `SELECT bucket_start, covered_until FROM summaries
           WHERE level = ? AND prompt_version = ? AND status = 'ready'
             AND bucket_start >= ? AND bucket_start < ?`,
       )
       .all(level, promptVersion, from, to)
-      .map((r) => Number(r.bucket_start)),
+      .map((r) => [Number(r.bucket_start), Number(r.covered_until ?? 0)]),
   );
 
   return [...buckets.values()]
-    .filter((b) => !done.has(b.start))
+    .filter((b) => (covered.get(b.start) ?? -1) < b.maxId)
     .sort((a, b) => a.start - b.start);
 }
 
@@ -93,6 +96,7 @@ export async function applyRollup(db, bucket, summarize, opts = {}) {
     promptVersion,
     model: result?.model ?? opts.model,
     sourceCount: events.length,
+    coveredUntil: Math.max(0, ...events.map((e) => Number(e.id) || 0)),
   });
 }
 

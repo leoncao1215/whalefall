@@ -114,9 +114,15 @@ CREATE TABLE proactive_log (
 CREATE INDEX idx_proactive_ts ON proactive_log(ts);
 `;
 
+const SCHEMA_V3 = `
+-- 摘要覆盖到哪条事件：新事件落进已经摘过的桶时，要能重新摘
+ALTER TABLE summaries ADD COLUMN covered_until INTEGER NOT NULL DEFAULT 0;
+`;
+
 const MIGRATIONS = [
   { version: 1, sql: SCHEMA_V1 },
   { version: 2, sql: SCHEMA_V2 },
+  { version: 3, sql: SCHEMA_V3 },
 ];
 
 /** @returns {number} 迁移后的 schema 版本 */

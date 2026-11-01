@@ -38,6 +38,7 @@ export function resolveApiKey(env = process.env, file) {
  * @param {string} [opts.baseUrl]
  * @param {number} [opts.temperature]
  * @param {number} [opts.maxTokens]
+ * @param {boolean} [opts.thinking] 默认 false：摘要用不到思维链，开着只会把 max_tokens 吃光
  * @param {number} [opts.timeoutMs]
  */
 export async function summarize(opts) {
@@ -50,6 +51,7 @@ export async function summarize(opts) {
     temperature = 0.2,
     maxTokens = 600,
     timeoutMs = 120_000,
+    thinking = false,
   } = opts ?? {};
 
   if (!apiKey) {
@@ -72,6 +74,9 @@ export async function summarize(opts) {
       temperature,
       max_tokens: maxTokens,
       stream: false,
+      // 默认关掉思维链：flash 默认开启 high，摘要这种任务会把额度耗在推理上，
+      // 表现出来就是 "返回了空内容"。
+      thinking: { type: thinking ? 'enabled' : 'disabled' },
     }),
     signal: AbortSignal.timeout(timeoutMs),
   });
@@ -82,7 +87,11 @@ export async function summarize(opts) {
   }
 
   const data = await res.json();
-  const text = String(data?.choices?.[0]?.message?.content ?? '').trim();
-  if (!text) throw new Error('DeepSeek 返回了空内容');
+  const message = data?.choices?.[0]?.message ?? {};
+  const text = String(message.content ?? '').trim();
+  if (!text) {
+    const reason = message.reasoning_content ? '（只返回了思维链，content 为空；确认 thinking 已关闭或调大 max_tokens）' : '';
+    throw new Error(`DeepSeek 返回了空内容${reason}`);
+  }
   return { text, model: data?.model ?? model, usage: data?.usage ?? null };
 }

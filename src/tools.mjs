@@ -19,7 +19,8 @@ export const TOOL_DEFINITIONS = [
       properties: {
         q: { type: 'string', description: '关键词；中文 3 字以上走全文索引，1-2 字走模糊匹配' },
         entity: { type: 'string', description: '人物/主题名' },
-        kind: { type: 'string', description: '事件类型，如 meal/note/task' },
+        kind: { type: 'string', description: '事件类型，如 meal/note/task/conversation' },
+        source: { type: 'string', description: '来源，如 qq/web/agent/pet' },
         from: { type: 'string', description: '起始时间，YYYY-MM-DD 或 ISO' },
         to: { type: 'string', description: '结束时间（不含）' },
         limit: { type: 'number', description: '最多返回几条，默认 10' },
@@ -116,6 +117,7 @@ export function createMemoryTools(db, opts = {}) {
           q: args.q,
           entity: args.entity,
           kind: args.kind,
+          source: args.source,
           from: time(args.from),
           to: time(args.to),
           limit,

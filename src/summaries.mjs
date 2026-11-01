@@ -19,6 +19,7 @@ export function upsertSummary(db, input) {
   const status = String(input.status ?? 'ready');
   const model = input.model ? String(input.model) : null;
   const sourceCount = Number(input.sourceCount ?? 0);
+  const coveredUntil = Number(input.coveredUntil ?? 0);
 
   const existing = db
     .prepare('SELECT id FROM summaries WHERE level = ? AND bucket_start = ? AND prompt_version = ?')
@@ -28,20 +29,20 @@ export function upsertSummary(db, input) {
     db.prepare(
       `UPDATE summaries
           SET bucket_end = ?, tz = ?, text = ?, status = ?, model = ?,
-              source_count = ?, updated_at = ?
+              source_count = ?, covered_until = ?, updated_at = ?
         WHERE id = ?`,
-    ).run(bucket.end, tz, text, status, model, sourceCount, now, existing.id);
+    ).run(bucket.end, tz, text, status, model, sourceCount, coveredUntil, now, existing.id);
     return getSummary(db, Number(existing.id));
   }
 
   const result = db.prepare(
     `INSERT INTO summaries
        (uid, level, bucket_start, bucket_end, tz, text, status, prompt_version,
-        model, source_count, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        model, source_count, covered_until, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     crypto.randomUUID(), level, bucket.start, bucket.end, tz, text, status,
-    promptVersion, model, sourceCount, now, now,
+    promptVersion, model, sourceCount, coveredUntil, now, now,
   );
   return getSummary(db, Number(result.lastInsertRowid));
 }
@@ -64,6 +65,7 @@ export function hydrateSummary(row) {
     promptVersion: row.prompt_version,
     model: row.model,
     sourceCount: Number(row.source_count),
+    coveredUntil: Number(row.covered_until ?? 0),
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
   };

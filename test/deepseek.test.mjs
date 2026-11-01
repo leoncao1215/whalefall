@@ -50,6 +50,7 @@ test('构造请求：URL / 鉴权 / 模型 / 消息', async () => {
   assert.equal(body.model, DEFAULT_MODEL);
   assert.equal(body.stream, false);
   assert.equal(body.temperature, 0.2);
+  assert.equal(body.thinking.type, 'disabled');
   assert.equal(body.messages.length, 2);
   assert.match(body.messages[0].content, /记忆整理器/);
   assert.equal(body.messages[1].content, '事件列表……');

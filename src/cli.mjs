@@ -9,6 +9,8 @@
  *   whalefall stats
  */
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import crypto from 'node:crypto';
 import { openDb, closeDb } from './db.mjs';
 import { addEvent, getEvent, hydrate } from './events.mjs';
@@ -16,6 +18,7 @@ import { searchEvents, timeline, stats } from './search.mjs';
 import { planRollup, runRollup } from './rollup.mjs';
 import { createCommandSummarizer, createMockSummarizer, summarizerPayload } from './summarizer.mjs';
 import { buildContext } from './context.mjs';
+import { harvestSessions } from './harvest.mjs';
 import { listPersonas, loadPersona, renderPersona } from './persona.mjs';
 import { assembleSystemPrompt } from './assemble.mjs';
 import { evaluateProactive, proactiveHistory, recordProactiveSend } from './proactive.mjs';
@@ -44,6 +47,7 @@ const USAGE = `用法：
   whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
   whalefall proactive log [--json]
+  whalefall dream [--hours 24] [--source qq,web] [--summarizer <命令>] [--dry-run] [--include-today]
   whalefall secret set <键名> [--value <值> | --prompt]   # 不给就从 stdin 读
   whalefall secret list [--json]
   whalefall secret rm <键名>
@@ -288,6 +292,42 @@ async function main() {
       if (flags.json) { console.log(JSON.stringify(out, null, 2)); return 0; }
       console.log(out.system);
       console.log(`\n-- ${out.tokens}/${out.budget} tokens${out.overBudget ? '（超预算）' : ''}`);
+      return 0;
+    }
+
+    if (command === 'dream') {
+      const hours = Number(flags.hours) || 24;
+      const since = Date.now() - hours * 3600000;
+      const root = String(flags.root || path.join(
+        process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'sessions',
+      ));
+      const sources = typeof flags.source === 'string' && flags.source !== 'all'
+        ? String(flags.source).split(',').map((x) => x.trim()).filter(Boolean)
+        : null;
+
+      const stats = harvestSessions(db, { root, since, sources, tz, dryRun: Boolean(flags['dry-run']) });
+      const verb = flags['dry-run'] ? '可归档' : '新增';
+      console.log(`会话文件 ${stats.files} 个，${verb}事件 ${stats.added} 条，跳过 ${stats.skipped} 条`);
+      for (const item of stats.sessions.filter((x) => x.added > 0)) {
+        console.log(`  ${item.source.padEnd(4)} ${item.sessionId.slice(0, 24)}  +${item.added}`);
+      }
+
+      if (typeof flags.summarizer === 'string') {
+        const level = String(flags.level || 'day');
+        const from = startOf(since, 'day', tz);
+        // 默认只摘"已经过完的日子"：凌晨跑批时，今天的桶还只有几个小时，
+        // 现在摘一遍、明天再摘一遍，纯属浪费调用。--include-today 可以强制包含今天。
+        const to = flags['include-today'] ? Date.now() : startOf(Date.now(), 'day', tz);
+        const plan = planRollup(db, { level, tz, from, to });
+        if (!plan.length) { console.log('没有待摘要的桶。'); return 0; }
+        const summarize = createCommandSummarizer(String(flags.summarizer), {
+          timeoutMs: Number(flags.timeout) || 180000,
+        });
+        const { ok, failed } = await runRollup(db, plan, summarize, { tz });
+        console.log(`摘要：完成 ${ok.length} 个，失败 ${failed.length} 个`);
+        for (const f of failed) console.error(`  ✗ ${f.bucket.key}: ${f.error}`);
+        return failed.length ? 1 : 0;
+      }
       return 0;
     }
 
