@@ -48,6 +48,7 @@ const USAGE = `用法：
   whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
   whalefall proactive log [--json]
+  whalefall harvest [--hours 24] [--source qq,web] [--dry-run] [--full]
   whalefall dream [--hours 24] [--source qq,web] [--summarizer <命令>] [--dry-run]
                  [--include-today] [--levels day,week,month,year]
   whalefall secret set <键名> [--value <值> | --prompt]   # 不给就从 stdin 读
@@ -308,6 +309,28 @@ async function main() {
       if (flags.json) { console.log(JSON.stringify(out, null, 2)); return 0; }
       console.log(out.system);
       console.log(`\n-- ${out.tokens}/${out.budget} tokens${out.overBudget ? '（超预算）' : ''}`);
+      return 0;
+    }
+
+    if (command === 'harvest') {
+      const hours = Number(flags.hours) || 24;
+      const since = Date.now() - hours * 3600000;
+      const root = String(flags.root || path.join(
+        process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'sessions',
+      ));
+      const sources = typeof flags.source === 'string' && flags.source !== 'all'
+        ? String(flags.source).split(',').map((x) => x.trim()).filter(Boolean)
+        : null;
+
+      const stats = harvestSessions(db, {
+        root, since, sources, tz,
+        dryRun: Boolean(flags['dry-run']),
+        incremental: !flags.full,
+      });
+      console.log(`会话 ${stats.files} 个，新增事件 ${stats.added} 条，跳过 ${stats.skipped} 条`);
+      for (const item of stats.sessions.filter((x) => x.added > 0)) {
+        console.log(`  ${item.source.padEnd(4)} ${item.sessionId.slice(0, 24)}  +${item.added}`);
+      }
       return 0;
     }
 

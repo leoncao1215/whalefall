@@ -43,6 +43,62 @@ export function readSessionFile(file) {
   return decodeSessionBuffer(fs.readFileSync(file));
 }
 
+/**
+ * 增量解码：从 buf 里逐帧解，返回记录和"安全消费到哪个字节"。
+ *
+ * 只消费到最后一个 turn/end —— 一个 turn 的 user 和 assistant 可能落在不同帧里，
+ * 如果半路消费，assistant 那半会被 dedupeKey 判成重复而丢掉。
+ * 没结束的 turn 留到下次再读。
+ */
+export function decodeSessionChunk(buf) {
+  const positions = [];
+  let at = 0;
+  while ((at = buf.indexOf(MAGIC, at)) !== -1) {
+    positions.push(at);
+    at += MAGIC.length;
+  }
+
+  const entries = [];
+  for (let i = 0; i < positions.length; i += 1) {
+    const start = positions[i];
+    const end = i + 1 < positions.length ? positions[i + 1] : buf.length;
+    try {
+      const text = zlib.zstdDecompressSync(buf.subarray(start, end)).toString('utf8');
+      for (const line of text.split('\n')) {
+        if (!line.trim()) continue;
+        try { entries.push({ record: JSON.parse(line), end }); } catch { /* 半截行 */ }
+      }
+    } catch {
+      break; // 最后一帧可能还没写完，停在这儿
+    }
+  }
+
+  let cut = 0;
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    if (entries[i].record?.type === 'turn/end') { cut = i + 1; break; }
+  }
+
+  return {
+    records: entries.slice(0, cut).map((e) => e.record),
+    consumed: cut > 0 ? entries[cut - 1].end : 0,
+  };
+}
+
+/** 只解第一帧，拿 session 头（增量读时用不到，但首次读要）。 */
+export function decodeSessionHeader(buf) {
+  const second = buf.indexOf(MAGIC, MAGIC.length);
+  const end = second === -1 ? buf.length : second;
+  try {
+    const text = zlib.zstdDecompressSync(buf.subarray(0, end)).toString('utf8');
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      const record = JSON.parse(line);
+      if (record?.type === 'session') return record;
+    }
+  } catch { /* 头都解不出来就算了 */ }
+  return null;
+}
+
 /** 从会话的 cwd 推出来源：QQ 插件有固定 workspace，其余算 web。 */
 export function sessionSource(cwd) {
   const value = String(cwd ?? '');
@@ -116,13 +172,28 @@ export function turnToEvent(turn) {
  * 归档一个会话文件。幂等：dedupeKey = sessionId:turn。
  * @returns {{sessionId: string, source: string, turns: number, added: number, skipped: number}}
  */
-export function harvestSessionFile(db, file, { tz, dryRun = false } = {}) {
-  const records = readSessionFile(file);
-  const header = records.find((r) => r.type === 'session') ?? null;
+export function harvestSessionFile(db, file, { tz, dryRun = false, incremental = true } = {}) {
+  const buf = fs.readFileSync(file);
+  const previous = incremental && !dryRun
+    ? db.prepare('SELECT * FROM harvest_state WHERE path = ?').get(file)
+    : null;
+
+  let start = previous ? Number(previous.offset) : 0;
+  if (previous && (Number(previous.size) > buf.length || start > buf.length)) start = 0;
+
+  let header = start > 0 && previous?.session_id
+    ? { id: previous.session_id, createdAt: Number(previous.created_at) || null, source: previous.source }
+    : null;
+  if (!header) {
+    header = decodeSessionHeader(buf);
+    start = 0; // 头变了说明文件被重建，从头读
+  }
+
   const sessionId = header?.id ?? path.basename(path.dirname(file));
   const createdAt = Number(header?.createdAt) || null;
-  const source = sessionSource(header?.cwd);
+  const source = header?.source ?? sessionSource(header?.cwd);
 
+  const { records, consumed } = decodeSessionChunk(buf.subarray(start));
   const turns = extractTurns(records, { createdAt });
   let added = 0;
   let skipped = 0;
@@ -145,7 +216,18 @@ export function harvestSessionFile(db, file, { tz, dryRun = false } = {}) {
     else added += 1;
   }
 
-  return { sessionId, source, turns: turns.length, added, skipped };
+  if (!dryRun && incremental) {
+    const now = Date.now();
+    db.prepare(
+      `INSERT INTO harvest_state (path, offset, size, session_id, source, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(path) DO UPDATE SET
+         offset = excluded.offset, size = excluded.size, session_id = excluded.session_id,
+         source = excluded.source, created_at = excluded.created_at, updated_at = excluded.updated_at`,
+    ).run(file, start + consumed, buf.length, sessionId, source, createdAt, now);
+  }
+
+  return { sessionId, source, turns: turns.length, added, skipped, consumed: start + consumed };
 }
 
 /** 找到会话根目录下的所有 session.v4.jsonl.zstd。 */
@@ -171,7 +253,7 @@ export function findSessionFiles(root) {
  * @param {number} opts.since 只看 mtime 不早于它的文件（粗筛，快）
  * @param {string[]} [opts.sources] 只要这些来源（'qq' | 'web' | ...）
  */
-export function harvestSessions(db, { root, since = 0, sources = null, tz, dryRun = false } = {}) {
+export function harvestSessions(db, { root, since = 0, sources = null, tz, dryRun = false, incremental = true } = {}) {
   const files = findSessionFiles(root).filter((f) => {
     try { return fs.statSync(f).mtimeMs >= since; } catch { return false; }
   });
@@ -179,7 +261,7 @@ export function harvestSessions(db, { root, since = 0, sources = null, tz, dryRu
   const stats = { files: 0, sessions: [], added: 0, skipped: 0 };
   for (const file of files) {
     let result;
-    try { result = harvestSessionFile(db, file, { tz, dryRun }); } catch { continue; }
+    try { result = harvestSessionFile(db, file, { tz, dryRun, incremental }); } catch { continue; }
     if (sources && !sources.includes(result.source)) continue;
     stats.files += 1;
     stats.sessions.push(result);

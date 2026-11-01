@@ -153,11 +153,25 @@ ALTER TABLE summaries_v4 RENAME TO summaries;
 CREATE INDEX idx_summaries_level ON summaries(level, bucket_start);
 `;
 
+const SCHEMA_V5 = `
+-- 增量采集的游标：记录每个会话文件读到哪、以及从第一帧解出来的头信息
+CREATE TABLE harvest_state (
+  path       TEXT PRIMARY KEY,
+  offset     INTEGER NOT NULL DEFAULT 0,
+  size       INTEGER NOT NULL DEFAULT 0,
+  session_id TEXT,
+  source     TEXT,
+  created_at INTEGER,
+  updated_at INTEGER NOT NULL
+) STRICT;
+`;
+
 const MIGRATIONS = [
   { version: 1, sql: SCHEMA_V1 },
   { version: 2, sql: SCHEMA_V2 },
   { version: 3, sql: SCHEMA_V3 },
   { version: 4, sql: SCHEMA_V4 },
+  { version: 5, sql: SCHEMA_V5 },
 ];
 
 /** @returns {number} 迁移后的 schema 版本 */
