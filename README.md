@@ -140,6 +140,20 @@ node src/cli.mjs rollup --summarizer "ollama run qwen2.5" --level day --days 7
 node src/cli.mjs rollup --summarizer "llm -m deepseek-chat" --level week --days 30
 ```
 
+### 用 DeepSeek（内置适配器）
+
+```bash
+node src/cli.mjs secret set deepseek.apiKey --prompt      # 一次性，不回显
+node src/cli.mjs rollup --summarizer "node scripts/deepseek-summarize.mjs" --level day --days 7
+```
+
+默认 `deepseek-flash` + `temperature 0.2` + `max_tokens 600`；高峰时段（北京时间 09–12、14–18 的工作日）
+会在 stderr 提醒，夜里跑就是半价：
+
+```cron
+30 3 * * * cd /path/whalefall && node src/cli.mjs rollup --summarizer "node scripts/deepseek-summarize.mjs" --level day --days 2 >> data/rollup.log 2>&1
+```
+
 单个桶失败不会影响其它桶（CLI 会返回非零退出码并打印失败的桶）。
 
 数据库默认在 `data/whalefall.db`，可用 `--db` 或 `WHALEFALL_DB` 覆盖。
