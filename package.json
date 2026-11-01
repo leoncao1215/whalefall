@@ -1,0 +1,15 @@
+{
+  "name": "whalefall",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "分层记忆：原文沉底，摘要分层，检索下潜。",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.mjs",
+    "cli": "node --disable-warning=ExperimentalWarning src/cli.mjs"
+  }
+}

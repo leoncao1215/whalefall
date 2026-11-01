@@ -1,0 +1,10 @@
+{"id":"q001","question":"我上周三午饭吃了什么？","kinds":["meal"],"expected_contains":["猪脚饭"],"notes":"时间+类型过滤"}
+{"id":"q002","question":"我和小鲸鱼聊过哪些关于记忆的事？","kinds":["note"],"expected_contains":["记忆"],"notes":"实体过滤"}
+{"id":"q003","question":"最近一次提到感冒是什么时候？","kinds":["note"],"expected_contains":["感冒"],"notes":"关键词+时间排序"}
+{"id":"q004","question":"十月我都在忙什么？","kinds":["note"],"expected_contains":[],"notes":"应命中十月摘要，而不是原文"}
+{"id":"q005","question":"那家火锅店叫什么？","kinds":["meal"],"expected_contains":["火锅"],"notes":"细节必须能下潜到原文"}
+{"id":"q006","question":"我什么时候说过要开始写记忆插件？","kinds":["note"],"expected_contains":["记忆"],"notes":"时间线回溯"}
+{"id":"q007","question":"今年我提过几次想换工作？","kinds":["note"],"expected_contains":["工作"],"notes":"跨月聚合，考摘要与原文的配比"}
+{"id":"q008","question":"上周我和谁一起吃了饭？","kinds":["meal"],"expected_contains":[],"notes":"实体+时间，允许空结果"}
+{"id":"q009","question":"我上次说头痛是什么时候，后来好了吗？","kinds":["note"],"expected_contains":["头痛"],"notes":"同一事件的多次提及"}
+{"id":"q010","question":"我之前说过的那个喜欢的东西叫什么来着？","kinds":["note"],"expected_contains":[],"notes":"模糊指代，考检索召回"}
