@@ -94,7 +94,21 @@ export async function proactiveTick(db, opts) {
     meta: model ? { model } : {},
   });
 
-  return { sent: true, id, text, verdict, history };
+  // 可选：真的发出去（QQ / 其它通道），并把投递结果记进 meta
+  let delivery = null;
+  if (typeof opts.deliver === 'function') {
+    try {
+      delivery = await opts.deliver(text);
+    } catch (error) {
+      delivery = { ok: false, error: String(error?.message ?? error) };
+    }
+    db.prepare('UPDATE proactive_log SET meta = ? WHERE id = ?').run(
+      JSON.stringify({ ...(model ? { model } : {}), delivery }),
+      id,
+    );
+  }
+
+  return { sent: true, id, text, verdict, history, delivery };
 }
 
 /** 用外部命令当"嘴"：payload 与 summarizer 同构，命令读 stdin JSON。 */
@@ -106,6 +120,7 @@ export function createCommandComposer(command, opts = {}) {
       now,
       tz,
       prompt,
+      system: persona ? renderPersona(persona).text : '',
       persona: {
         name: persona?.name ?? '',
         text: persona ? renderPersona(persona).text : '',

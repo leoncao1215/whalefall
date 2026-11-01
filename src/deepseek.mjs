@@ -39,6 +39,7 @@ export function resolveApiKey(env = process.env, file) {
  * @param {number} [opts.temperature]
  * @param {number} [opts.maxTokens]
  * @param {boolean} [opts.thinking] 默认 false：摘要用不到思维链，开着只会把 max_tokens 吃光
+ * @param {string} [opts.system] 覆盖默认的"记忆整理器"系统提示（主动消息要用人格）
  * @param {number} [opts.timeoutMs]
  */
 export async function summarize(opts) {
@@ -52,6 +53,7 @@ export async function summarize(opts) {
     maxTokens = 600,
     timeoutMs = 120_000,
     thinking = false,
+    system = SYSTEM_PROMPT,
   } = opts ?? {};
 
   if (!apiKey) {
@@ -68,7 +70,7 @@ export async function summarize(opts) {
     body: JSON.stringify({
       model,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: String(system) },
         { role: 'user', content: String(prompt) },
       ],
       temperature,

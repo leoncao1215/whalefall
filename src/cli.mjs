@@ -17,10 +17,12 @@ import { addEvent, getEvent, hydrate } from './events.mjs';
 import { searchEvents, timeline, stats } from './search.mjs';
 import { distinctEventSources, planRollup, runRollup } from './rollup.mjs';
 import { runDreamSummaries } from './dream.mjs';
+import { sendProactive } from './qq-send.mjs';
 import { createCommandSummarizer, createMockSummarizer, summarizerPayload } from './summarizer.mjs';
 import { buildContext } from './context.mjs';
 import { harvestSessions } from './harvest.mjs';
 import { rebuildFromSessions, verifyHarvest } from './verify.mjs';
+import { readQqConfig } from './qq-send.mjs';
 import { listPersonas, loadPersona, renderPersona } from './persona.mjs';
 import { assembleSystemPrompt } from './assemble.mjs';
 import { evaluateProactive, proactiveHistory, recordProactiveSend } from './proactive.mjs';
@@ -49,6 +51,7 @@ const USAGE = `用法：
   whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
   whalefall proactive log [--json]
+  whalefall qq whoami | qq send <文本> --yes [--group]
   whalefall verify [--hours <n>] [--source qq,web]
   whalefall reindex --yes [--hours <n>]
   whalefall harvest [--hours 24] [--source qq,web] [--dry-run] [--full]
@@ -58,7 +61,7 @@ const USAGE = `用法：
   whalefall secret list [--json]
   whalefall secret rm <键名>
   whalefall serve [--port 8787] [--host 127.0.0.1] [--token <令牌>] [--responder <命令>] [--echo]
-  whalefall tick [--text <内容> | --command <命令>] [--now <时间>] [--memory <文本>]
+  whalefall tick [--text <内容> | --command <命令>] [--now <时间>] [--memory <文本>] [--send]
                  [--q <关键词> | --recent] [--dry-run]
   whalefall tool <工具名> [--args '<json>'] [--json]
   whalefall tools [--json]
@@ -315,6 +318,31 @@ async function main() {
       return 0;
     }
 
+    if (command === 'qq') {
+      const sub = positional[1];
+      if (sub === 'whoami') {
+        const cfg = readQqConfig(flags.profile ? String(flags.profile) : undefined);
+        const mask = (v) => (v ? `${String(v).slice(0, 4)}…${String(v).slice(-4)}` : '(空)');
+        console.log(`appId: ${cfg.appId}`);
+        console.log(`appSecret: ${mask(cfg.appSecret)}（长度 ${cfg.appSecret.length}）`);
+        console.log(`c2c: ${cfg.c2cAllow.map(mask).join(', ') || '(空)'}`);
+        console.log(`group: ${cfg.groupAllow.map(mask).join(', ') || '(空)'}`);
+        return 0;
+      }
+      if (sub === 'send') {
+        const text = positional.slice(2).join(' ');
+        if (!text) throw new Error('用法：whalefall qq send <文本> --yes [--group]');
+        if (!flags.yes) throw new Error('这会真的发出消息；确认请加 --yes');
+        const out = await sendProactive(text, {
+          toGroup: Boolean(flags.group),
+          groupOpenid: typeof flags.group === 'string' ? String(flags.group) : undefined,
+        });
+        console.log(out.ok ? `已发送：${out.id}` : `发送失败：HTTP ${out.status} code=${out.code} ${out.message}`);
+        return out.ok ? 0 : 1;
+      }
+      throw new Error('用法：whalefall qq whoami | qq send <文本> --yes [--group]');
+    }
+
     if (command === 'verify') {
       const hours = Number(flags.hours) || 0;
       const since = hours > 0 ? Date.now() - hours * 3600000 : 0;
@@ -508,8 +536,14 @@ async function main() {
         throw new Error('tick 需要 --text "<内容>" 或 --command "<命令>"（或用 --dry-run 先看提示词）');
       }
 
-      const out = await proactiveTick(db, { persona, now, tz, compose, memoryText });
-      if (out.sent) console.log(`已发送 #${out.id}：${out.text}`);
+      const out = await proactiveTick(db, {
+        persona, now, tz, compose, memoryText,
+        deliver: flags.send ? (text) => sendProactive(text) : undefined,
+      });
+      if (out.sent) {
+        const sent = out.delivery ? (out.delivery.ok ? '已投递' : `投递失败：${out.delivery.message ?? out.delivery.error}`) : '未投递';
+        console.log(`已生成 #${out.id}（${sent}）：${out.text}`);
+      }
       else console.log(`没发：[${out.verdict.code}] ${out.verdict.reason}`);
       return 0;
     }

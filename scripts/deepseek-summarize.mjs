@@ -28,6 +28,7 @@ try {
   const result = await summarize({
     prompt,
     apiKey: resolveApiKey(),
+    system: payload.system || undefined,
     model: process.env.DEEPSEEK_MODEL || undefined,
     maxTokens: Number(process.env.DEEPSEEK_MAX_TOKENS) || 600,
   });
