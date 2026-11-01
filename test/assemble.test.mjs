@@ -22,7 +22,7 @@ test('组装：人格 + 规则 + <memory> 数据块', () => {
   try {
     seed(db);
     const out = assembleSystemPrompt(db, { persona: PERSONA, q: '猪脚饭', budget: 1500, tz: SH });
-    assert.match(out.system, /# 你是 阿鲸/);
+    assert.match(out.system, /# 你是 大肥鱼/);
     assert.ok(out.system.includes(MEMORY_RULES));
     assert.match(out.system, /<memory>/);
     assert.match(out.system, /猪脚饭/);

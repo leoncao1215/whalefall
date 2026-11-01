@@ -21,7 +21,7 @@ test('提示词：带时间、人格名、记忆块，并允许不说话', () =>
     history: [{ ts: NOON - 4 * 3600000, text: '早，记得吃早饭' }],
   });
   assert.match(prompt, /2026-11-01 15:00/);
-  assert.match(prompt, /阿鲸/);
+  assert.match(prompt, /大肥鱼/);
   assert.match(prompt, /感冒/);
   assert.match(prompt, /输出空/);
   assert.match(prompt, /不要重复/);

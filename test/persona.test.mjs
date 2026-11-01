@@ -16,7 +16,7 @@ function tmpDir() {
 test('示例人格包能载入', () => {
   const persona = loadPersona(EXAMPLE);
   assert.equal(persona.id, 'dafeiyu');
-  assert.equal(persona.name, '阿鲸');
+  assert.equal(persona.name, '大肥鱼');
   assert.ok(persona.identity.length > 50);
   assert.ok(persona.examples.length >= 3);
   assert.equal(persona.policy.proactive.dailyMax, 3);
@@ -25,7 +25,7 @@ test('示例人格包能载入', () => {
 test('渲染结果包含身份、风格、主动策略、边界与示例', () => {
   const persona = loadPersona(EXAMPLE);
   const { text, tokens } = renderPersona(persona);
-  assert.match(text, /# 你是 阿鲸/);
+  assert.match(text, /# 你是 大肥鱼/);
   assert.match(text, /## 说话方式/);
   assert.match(text, /安静时段/);
   assert.match(text, /## 边界/);
