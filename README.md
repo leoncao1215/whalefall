@@ -98,6 +98,19 @@ curl -s -X POST http://127.0.0.1:8787/v1/chat \
 # {"ok":true,"reply":"（还没接模型）我听到你说：在吗",...}
 ```
 
+### 同步到 QQ（生成式配置）
+
+`personas/` 是唯一源头；DSH profile 里 `im-qqbot` 的 `directPrompt` / `groupPrompt`
+由脚本生成，带 BEGIN/END 标记，只替换标记之间的内容：
+
+```bash
+node scripts/sync-qq-persona.mjs --check     # 有没有漂移
+node scripts/sync-qq-persona.mjs             # 写入（自动备份）
+node scripts/sync-qq-persona.mjs --dry-run   # 只看结果
+```
+
+改完人格要重启 DSH 才生效。单聊用完整人格 + 记忆规则，群聊多一段"收着点"的规矩。
+
 ## 接到 DSH（MCP）
 
 `src/mcp.mjs` 是一个零依赖的 stdio MCP server，暴露七个 `memory_*` 工具。
@@ -182,6 +195,7 @@ src/query.mjs      自然语言 → 检索计划
 src/eval.mjs       检索评测
 src/cli.mjs        命令行
 personas/          人格包（dafeiyu 是示例）
+scripts/           同步/适配脚本（QQ 人格、DeepSeek 摘要）
 test/              node:test
 ```
 
