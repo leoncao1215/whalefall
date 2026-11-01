@@ -5,6 +5,7 @@
  * 生成后再检查一次"是不是空话"，空话就当没发生。
  */
 import { evaluateProactive, proactiveHistory, recordProactiveSend } from './proactive.mjs';
+import { addEvent } from './events.mjs';
 import { runSummarizerCommand } from './summarizer.mjs';
 import { renderPersona } from './persona.mjs';
 import { DEFAULT_TZ, bucketKey, formatLocal, parseTime } from './time.mjs';
@@ -54,7 +55,9 @@ export async function proactiveTick(db, opts) {
   const tz = opts.tz || DEFAULT_TZ;
   const now = Number(opts.now) || Date.now();
   const policy = opts.persona?.policy?.proactive ?? {};
-  const history = proactiveHistory(db, { since: now - 3 * 86400000 });
+  // 投递失败的记录不算"说过"，否则会挡住下一次重试
+  const history = proactiveHistory(db, { since: now - 3 * 86400000 })
+    .filter((item) => item.meta?.delivery?.ok !== false);
 
   const verdict = evaluateProactive({
     now,
@@ -106,6 +109,19 @@ export async function proactiveTick(db, opts) {
       JSON.stringify({ ...(model ? { model } : {}), delivery }),
       id,
     );
+
+    // 发出去的是"说过的话"，要进记忆：否则下一个会话里的它不记得自己说过什么
+    if (delivery?.ok) {
+      addEvent(db, {
+        title: '主动消息',
+        body: text,
+        ts: now,
+        tz,
+        source: 'agent',
+        kind: 'proactive',
+        dedupeKey: `proactive:${id}`,
+      });
+    }
   }
 
   return { sent: true, id, text, verdict, history, delivery };

@@ -94,6 +94,49 @@ test('生成空话时不发', async () => {
   }
 });
 
+test('投递成功：写一条 proactive 事件进记忆', async () => {
+  const db = openDb(':memory:');
+  try {
+    const out = await proactiveTick(db, {
+      persona: PERSONA, now: NOON, tz: SH,
+      compose: async () => '早点睡，别熬了',
+      deliver: async () => ({ ok: true, id: 'm1' }),
+    });
+    assert.equal(out.delivery.ok, true);
+
+    const rows = db.prepare("SELECT * FROM events WHERE kind = 'proactive'").all();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].body, '早点睡，别熬了');
+    assert.equal(rows[0].source, 'agent');
+  } finally {
+    closeDb(db);
+  }
+});
+
+test('投递失败：不写事件，也不挡住下一次', async () => {
+  const db = openDb(':memory:');
+  try {
+    const failed = await proactiveTick(db, {
+      persona: PERSONA, now: NOON, tz: SH,
+      compose: async () => '第一句',
+      deliver: async () => ({ ok: false, status: 500, message: 'boom' }),
+    });
+    assert.equal(failed.delivery.ok, false);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM events WHERE kind = 'proactive'").get().n, 0);
+
+    // 一小时后重试：失败的记录不应该被当成"已经说过"
+    const retry = await proactiveTick(db, {
+      persona: PERSONA, now: NOON + 3600000, tz: SH,
+      compose: async () => '第二句',
+      deliver: async () => ({ ok: true, id: 'm2' }),
+    });
+    assert.equal(retry.sent, true);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM events WHERE kind = 'proactive'").get().n, 1);
+  } finally {
+    closeDb(db);
+  }
+});
+
 test('没有值得说的事：连模型都不调', async () => {
   const db = openDb(':memory:');
   try {
