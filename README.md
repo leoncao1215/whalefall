@@ -16,8 +16,9 @@
 - **上下文装配**：`buildContext()` 按预算拼「命中 → 摘要 → 最近」，每块带 id，超预算宁可少给。
 - **人格包**：`identity.md` + `policy.json` + `examples.jsonl`，可渲染成系统提示词；示例是大肥鱼本人。
 - **系统提示装配**：人格 + 记忆规则 + `<memory>` 数据块，按预算裁剪；记忆明确标成数据而不是指令。
-- **主动闸门**：安静时段（支持跨午夜）/ 每日上限 / 最小间隔 / 用户在聊，默认不说话。
-- **工具门面**：7 个 `memory_*` 工具（search / timeline / get / summary / remember / forget / stats），带 JSON Schema，可直接挂到 DSH 或 MCP。
+- **主动闸门 + 心跳**：闸门（安静时段/日上限/最小间隔/用户在聊）+ `proactiveTick()`（闸门 → 生成 → 落库），默认不说话。
+- **MCP server**：零依赖 stdio 服务，`memory_*` 七个工具直接接进 DSH。
+- **工具门面**：7 个 `memory_*` 工具（search / timeline / get / summary / remember / forget / stats），带 JSON Schema。
 - **真删除**：`memory_forget` 删原文，并把覆盖该时刻的摘要标脏（stale），下次 rollup 会重算。
 - **CLI**：`add / search / timeline / context / plan / rollup / summaries / stats / eval / export`。
 
@@ -43,7 +44,26 @@ node src/cli.mjs prompt 猪脚饭 --budget 900
 node src/cli.mjs proactive check --now 2026-11-01T23:40
 node src/cli.mjs tools
 node src/cli.mjs tool memory_search --q 猪脚饭
+node src/cli.mjs tick --now 2026-11-01T15:00 --text "感冒好点没"
 ```
+
+## 接到 DSH（MCP）
+
+`src/mcp.mjs` 是一个零依赖的 stdio MCP server，暴露七个 `memory_*` 工具。
+在 DSH profile 的 `cordis.patch.yml` 里加一段（路径换成你的）：
+
+```yaml
+- insert:
+    - id: whalefall
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: whalefall
+        transport: stdio
+        command: node
+        args: ['/绝对路径/whalefall/src/mcp.mjs']
+```
+
+库路径默认锚在仓库的 `data/whalefall.db`，可用环境变量 `WHALEFALL_DB` 覆盖。
 
 ## 接模型（或任何命令）
 
@@ -83,6 +103,8 @@ src/assemble.mjs   人格 + 记忆规则 + 数据块 → system prompt
 src/proactive.mjs  主动闸门与流水
 src/tools.mjs      模型可调的工具门面（memory_*）
 src/forget.mjs     删除与派生摘要标脏
+src/tick.mjs       主动心跳：闸门 → 生成 → 落库
+src/mcp.mjs        MCP stdio server
 src/eval.mjs       检索评测
 src/cli.mjs        命令行
 personas/          人格包（dafeiyu 是示例）

@@ -19,6 +19,7 @@ import { listPersonas, loadPersona, renderPersona } from './persona.mjs';
 import { assembleSystemPrompt } from './assemble.mjs';
 import { evaluateProactive, proactiveHistory, recordProactiveSend } from './proactive.mjs';
 import { callTool, TOOL_DEFINITIONS } from './tools.mjs';
+import { buildProactivePrompt, createCommandComposer, proactiveTick } from './tick.mjs';
 import { listSummaries } from './summaries.mjs';
 import { readJsonl, runQuestions, seedCorpus, writeReport } from './eval.mjs';
 import { bucketOf, DEFAULT_TZ, formatLocal, parseTime, startOf } from './time.mjs';
@@ -38,6 +39,8 @@ const USAGE = `用法：
   whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
   whalefall proactive log [--json]
+  whalefall tick [--text <内容> | --command <命令>] [--now <时间>] [--memory <文本>]
+                 [--q <关键词>] [--dry-run]
   whalefall tool <工具名> [--args '<json>'] [--json]
   whalefall tools [--json]
   whalefall summaries [--level <层级>] [--limit <n>] [--json]
@@ -239,6 +242,46 @@ async function main() {
       if (flags.json) { console.log(JSON.stringify(out, null, 2)); return 0; }
       console.log(out.system);
       console.log(`\n-- ${out.tokens}/${out.budget} tokens${out.overBudget ? '（超预算）' : ''}`);
+      return 0;
+    }
+
+    if (command === 'tick') {
+      const persona = loadPersona(String(flags.persona || 'personas/dafeiyu'));
+      const now = flags.now ? parseTime(flags.now, tz) : Date.now();
+      let memoryText = typeof flags.memory === 'string' ? flags.memory : '';
+      if (!memoryText && typeof flags.q === 'string') {
+        memoryText = buildContext(db, { q: String(flags.q), budget: 400, tz }).text;
+      }
+
+      if (flags['dry-run']) {
+        const history = proactiveHistory(db, { since: now - 3 * 86400000 });
+        const verdict = evaluateProactive({
+          now,
+          policy: persona.policy?.proactive ?? {},
+          history,
+          tz,
+        });
+        console.log(JSON.stringify({
+          verdict,
+          prompt: buildProactivePrompt({ persona, now, tz, memoryText, history }),
+        }, null, 2));
+        return 0;
+      }
+
+      let compose;
+      if (typeof flags.text === 'string') compose = async () => String(flags.text);
+      else if (typeof flags.command === 'string') {
+        compose = createCommandComposer(String(flags.command), {
+          tz,
+          timeoutMs: Number(flags.timeout) || 60000,
+        });
+      } else {
+        throw new Error('tick 需要 --text "<内容>" 或 --command "<命令>"（或用 --dry-run 先看提示词）');
+      }
+
+      const out = await proactiveTick(db, { persona, now, tz, compose, memoryText });
+      if (out.sent) console.log(`已发送 #${out.id}：${out.text}`);
+      else console.log(`没发：[${out.verdict.code}] ${out.verdict.reason}`);
       return 0;
     }
 

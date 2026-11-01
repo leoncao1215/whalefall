@@ -2,7 +2,7 @@
 
 > 给 agent 一套真正记得住的记忆：**原文永远沉底，摘要按层分解，检索按需下潜。**
 >
-> 状态：P1/P2/P3(工具)/P4 完成 · P5 闸门完成、缺触发器 · 最后更新 2026-11-01
+> 状态：P1/P2/P3/P4/P5 完成 · MCP 已能接 DSH · 最后更新 2026-11-01
 
 ---
 
@@ -147,13 +147,17 @@ node src/cli.mjs timeline 2026-11-01
 
 schedule（DSH 已有）+ 检索 + 闸门（安静时段/日上限/正在聊/额度）+ 幂等。
 
-已完成：`src/proactive.mjs`（跨午夜安静时段、每日上限、最小间隔、用户活跃、无料不说）、
-`proactive_log` 表（migration v2）、CLI check/record/log。
-剩余：定时触发器接入、主动内容的生成与幂等。
+已完成：`src/proactive.mjs` 闸门（跨午夜安静时段、日上限、最小间隔、用户活跃、无料不说）、
+`proactive_log` 表（migration v2）、`src/tick.mjs` 心跳（闸门 → 生成 → 落库，空话不发）、CLI tick。
+剩余：真正的定时器（交给 DSH schedule 或 cron）。
 
 **验收**：连续 24h 模拟，主动消息条数 ≤ 上限，安静时段 0 条。
 
-### P6 · 桌宠协议
+### P6 · 入口（进行中）
+
+MCP：`src/mcp.mjs` 零依赖 stdio server，七个工具已可接进 DSH（验收：MCP 测试三连通过）。
+
+桌宠协议：
 
 WebSocket + token + 断线重连 + 离线队列；参考客户端不在本仓库。
 
