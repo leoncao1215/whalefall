@@ -28,6 +28,7 @@ import { assembleSystemPrompt } from './assemble.mjs';
 import { evaluateProactive, proactiveHistory, recordProactiveSend } from './proactive.mjs';
 import { callTool, TOOL_DEFINITIONS } from './tools.mjs';
 import { buildProactivePrompt, createCommandComposer, proactiveTick } from './tick.mjs';
+import { heartbeatStatus, recordHeartbeat } from './heartbeat.mjs';
 import { planQuery, searchByPlan } from './query.mjs';
 import { deleteSecret, listSecrets, setSecret } from './secrets.mjs';
 import { createCommandResponder, createGateway } from './gateway.mjs';
@@ -51,6 +52,8 @@ const USAGE = `用法：
   whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
   whalefall proactive log [--json]
+  whalefall heartbeat [--json] [--now <时间>] [--persona <目录>]
+  whalefall heartbeat record --text "<说过的话>" [--kind proactive|followup] [--thread <id>]
   whalefall qq whoami | qq send <文本> --yes [--group]
   whalefall verify [--hours <n>] [--source qq,web]
   whalefall reindex --yes [--hours <n>]
@@ -496,6 +499,33 @@ async function main() {
       if (host === '0.0.0.0') console.log('⚠ 正在监听所有网卡：请确保这个端口只在可信局域网内可达');
       console.log('Ctrl+C 退出');
       await new Promise(() => {});
+      return 0;
+    }
+
+    if (command === 'heartbeat') {
+      const persona = loadPersona(String(flags.persona || 'personas/dafeiyu'));
+      const now = flags.now ? parseTime(flags.now, tz) : Date.now();
+      if (positional[1] === 'record') {
+        const text = String(flags.text || positional.slice(2).join(' ') || '').trim();
+        if (!text) throw new Error('heartbeat record 需要 --text "<说过的话>"');
+        const id = recordHeartbeat(db, {
+          text,
+          kind: String(flags.kind || 'proactive'),
+          thread: flags.thread != null ? Number(flags.thread) : null,
+          now,
+        });
+        console.log(`已记录 #${id}`);
+        return 0;
+      }
+      const status = heartbeatStatus(db, { persona, now, tz });
+      if (flags.json) { console.log(JSON.stringify(status, null, 2)); return 0; }
+      console.log(`${status.local}  今天已主动 ${status.todayCount} 次`);
+      console.log(`建议：${status.suggest}  —— ${status.why}`);
+      if (status.lastProactive) {
+        const p = status.lastProactive;
+        console.log(`上一条：${formatLocal(p.ts, tz)}（${p.ageMinutes} 分钟前，${p.replied ? '已回' : '没回'}）${p.text}`);
+      }
+      if (status.lastChat) console.log(`最近对话：${formatLocal(status.lastChat.ts, tz)}  ${status.lastChat.title}`);
       return 0;
     }
 
