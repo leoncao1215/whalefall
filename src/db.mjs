@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { resolveInstance } from './instance.mjs';
 
 const SCHEMA_V1 = `
 CREATE TABLE meta (
@@ -196,9 +197,9 @@ export function migrate(db) {
 
 /**
  * 打开（必要时创建）数据库。
- * @param {string} [file] 默认取 WHALEFALL_DB，否则 data/whalefall.db；':memory:' 用于测试
+ * @param {string} [file] 默认取 WHALEFALL_DB，否则当前个体的 memory.db；':memory:' 用于测试
  */
-export function openDb(file = process.env.WHALEFALL_DB || 'data/whalefall.db') {
+export function openDb(file = process.env.WHALEFALL_DB || resolveInstance().db) {
   if (file !== ':memory:') {
     fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
   }

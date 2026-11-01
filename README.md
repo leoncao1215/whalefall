@@ -222,10 +222,23 @@ src/gateway.mjs    桌宠网关（HTTP + SSE）
 src/query.mjs      自然语言 → 检索计划
 src/eval.mjs       检索评测
 src/cli.mjs        命令行
-personas/          人格包（dafeiyu 是示例）
+instances/example/ 个体模板（仓库里只会出现这一份；真个体在 ~/.whalefall/instances/）
+docs/ARCHITECTURE.md 基建与个体的边界
 scripts/           同步/适配脚本（QQ 人格、DeepSeek 摘要）
 test/              node:test
 ```
+
+## 基建与个体
+
+whalefall 是引擎；"某个存在"是它上面的一份实例，默认住在 `~/.whalefall/instances/<id>/`
+（人格、记忆、成长记录）。仓库里只有 `instances/example/` 模板，个体数据永不入库。
+
+```bash
+node src/cli.mjs init dafeiyu --name "大肥鱼"   # 从模板建一个个体
+node src/cli.mjs instances                     # 看有哪些
+```
+
+细节见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
 ## 设计取舍
 

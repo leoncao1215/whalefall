@@ -15,7 +15,11 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export function defaultSecretsFile() {
-  return process.env.WHALEFALL_SECRETS || path.join(ROOT, 'data', 'secrets.json');
+  if (process.env.WHALEFALL_SECRETS) return process.env.WHALEFALL_SECRETS;
+  // 迁移期：旧的 repo 内位置还在就先用，免得密钥突然"消失"
+  const legacy = path.join(ROOT, 'data', 'secrets.json');
+  if (fs.existsSync(legacy)) return legacy;
+  return path.join(process.env.WHALEFALL_HOME || path.join(process.env.HOME || '/root', '.whalefall'), 'secrets.json');
 }
 
 function assertKey(key) {

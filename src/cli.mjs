@@ -13,6 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { openDb, closeDb } from './db.mjs';
+import { initInstance, listInstances, resolveInstance, whalefallHome } from './instance.mjs';
 import { addEvent, getEvent, hydrate } from './events.mjs';
 import { searchEvents, timeline, stats } from './search.mjs';
 import { distinctEventSources, planRollup, runRollup } from './rollup.mjs';
@@ -47,7 +48,9 @@ const USAGE = `用法：
                  [--from <时间>] [--to <时间>] [--days <n>] [--limit <n>] [--dry-run]
   whalefall ask <问题> [--limit <n>] [--json]
   whalefall context <关键词> [--budget <tokens>] [--hits <n>] [--json]
-  whalefall persona [--dir personas/dafeiyu] [--json]
+  whalefall init <id> [--name <名字>] [--force]
+  whalefall instances
+  whalefall persona [--dir <人格包>] [--json]
   whalefall personas [--dir personas] [--json]
   whalefall prompt <关键词> [--budget <tokens>] [--persona <目录>] [--json]
   whalefall proactive check [--persona <目录>] [--now <时间>] [--user-last <时间>] [--no-substance]
@@ -74,7 +77,8 @@ const USAGE = `用法：
                  [--hard eval/questions-hard.jsonl] [--k 5] [--out eval/report.md] [--json]
   whalefall export [--out <文件>]
 
-全局：--db <路径>（默认 data/whalefall.db，或环境变量 WHALEFALL_DB）
+全局：--db <路径>（默认当前个体的 memory.db，或 WHALEFALL_DB）
+      --instance <id>（默认 dafeiyu，或 WHALEFALL_INSTANCE）
 `;
 
 function parseArgs(argv) {
@@ -178,7 +182,9 @@ async function main() {
   const tz = String(flags.tz || DEFAULT_TZ);
   // 评测默认用内存库，避免把测试语料写进真实记忆
   const inMemory = command === 'eval' || command === 'persona' || command === 'personas' || command === 'secret';
-  const dbPath = flags.db ? String(flags.db) : (inMemory ? ':memory:' : undefined);
+  const instance = resolveInstance(flags.instance ? String(flags.instance) : undefined);
+  const personaDirOf = (value) => (value && value !== true ? String(value) : instance.personaDir);
+  const dbPath = flags.db ? String(flags.db) : (inMemory ? ':memory:' : instance.db);
   const db = openDb(dbPath);
 
   try {
@@ -307,7 +313,7 @@ async function main() {
     if (command === 'prompt') {
       const q = positional.slice(1).join(' ');
       if (!q && !flags.entity) throw new Error('prompt 需要一个关键词（或用 --entity）');
-      const persona = flags.persona === false ? null : loadPersona(String(flags.persona || 'personas/dafeiyu'));
+      const persona = flags.persona === false ? null : loadPersona(personaDirOf(flags.persona));
       const out = assembleSystemPrompt(db, {
         persona,
         q,
@@ -318,6 +324,30 @@ async function main() {
       if (flags.json) { console.log(JSON.stringify(out, null, 2)); return 0; }
       console.log(out.system);
       console.log(`\n-- ${out.tokens}/${out.budget} tokens${out.overBudget ? '（超预算）' : ''}`);
+      return 0;
+    }
+
+    if (command === 'init') {
+      const id = positional[1];
+      if (!id) throw new Error('用法：whalefall init <id> [--name <名字>]');
+      const created = initInstance(id, {
+        name: flags.name && flags.name !== true ? String(flags.name) : undefined,
+        force: Boolean(flags.force),
+      });
+      console.log(`已创建个体 ${created.id}：${created.dir}`);
+      console.log(`人格：${created.personaDir}`);
+      console.log(`数据根目录：${whalefallHome()}`);
+      return 0;
+    }
+
+    if (command === 'instances') {
+      const ids = listInstances();
+      if (!ids.length) { console.log('还没有任何个体。用 whalefall init <id> 建一个。'); return 0; }
+      for (const id of ids) {
+        const inst = resolveInstance(id);
+        const tag = inst.legacy.persona || inst.legacy.db ? '（旧位置）' : '';
+        console.log(`${id}${tag}  ${inst.dir}`);
+      }
       return 0;
     }
 
@@ -479,7 +509,7 @@ async function main() {
     }
 
     if (command === 'serve') {
-      const persona = loadPersona(String(flags.persona || 'personas/dafeiyu'));
+      const persona = loadPersona(personaDirOf(flags.persona));
       const token = typeof flags.token === 'string' && flags.token.length >= 16
         ? String(flags.token)
         : crypto.randomBytes(24).toString('hex');
@@ -503,7 +533,7 @@ async function main() {
     }
 
     if (command === 'heartbeat') {
-      const persona = loadPersona(String(flags.persona || 'personas/dafeiyu'));
+      const persona = loadPersona(personaDirOf(flags.persona));
       const now = flags.now ? parseTime(flags.now, tz) : Date.now();
       if (positional[1] === 'record') {
         const text = String(flags.text || positional.slice(2).join(' ') || '').trim();
@@ -538,7 +568,7 @@ async function main() {
     }
 
     if (command === 'tick') {
-      const persona = loadPersona(String(flags.persona || 'personas/dafeiyu'));
+      const persona = loadPersona(personaDirOf(flags.persona));
       const now = flags.now ? parseTime(flags.now, tz) : Date.now();
       let memoryText = typeof flags.memory === 'string' ? flags.memory : '';
       if (!memoryText && typeof flags.q === 'string') {
@@ -626,7 +656,7 @@ async function main() {
         return 0;
       }
       // 默认 check
-      const persona = flags.persona === false ? null : loadPersona(String(flags.persona || 'personas/dafeiyu'));
+      const persona = flags.persona === false ? null : loadPersona(personaDirOf(flags.persona));
       const policy = persona?.policy?.proactive ?? { enabled: false };
       const now = flags.now ? parseTime(flags.now, tz) : Date.now();
       const since = now - 2 * 86400000;
@@ -645,7 +675,7 @@ async function main() {
     }
 
     if (command === 'persona') {
-      const dir = String(flags.dir || 'personas/dafeiyu');
+      const dir = personaDirOf(flags.dir);
       const persona = loadPersona(dir);
       const rendered = renderPersona(persona);
       if (flags.json) {

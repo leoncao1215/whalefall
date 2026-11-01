@@ -22,6 +22,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.mjs';
+import { resolveInstance } from './instance.mjs';
 import { callTool, TOOL_DEFINITIONS } from './tools.mjs';
 import { harvestSessions } from './harvest.mjs';
 
@@ -45,7 +46,7 @@ function replyError(id, code, message) {
 }
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DB_FILE = process.env.WHALEFALL_DB || path.join(ROOT, 'data', 'whalefall.db');
+const DB_FILE = process.env.WHALEFALL_DB || resolveInstance().db;
 
 const SESSIONS_ROOT = process.env.WHALEFALL_SESSIONS
   || path.join(process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'sessions');

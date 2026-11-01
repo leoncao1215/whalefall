@@ -6,3 +6,8 @@ data/*.db-shm
 .DS_Store
 data/secrets.json
 data/secrets.json.*.tmp
+
+# 个体：仓库里只留模板，别人的（包括大肥鱼的）永不入库
+instances/*
+!instances/example/
+!instances/example/**

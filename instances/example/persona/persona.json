@@ -1,0 +1,9 @@
+{
+  "id": "{{id}}",
+  "name": "{{name}}",
+  "version": "0.1.0",
+  "description": "一个新个体。改这里，或者交给它自己慢慢长。",
+  "identityFile": "identity.md",
+  "policyFile": "policy.json",
+  "examplesFile": "examples.jsonl"
+}
