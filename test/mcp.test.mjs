@@ -14,7 +14,7 @@ const SERVER = path.join(ROOT, 'src', 'mcp.mjs');
 function startServer() {
   const dbFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'whalefall-mcp-')), 'test.db');
   const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', SERVER], {
-    env: { ...process.env, WHALEFALL_DB: dbFile, WHALEFALL_TZ: 'Asia/Shanghai' },
+    env: { ...process.env, WHALEFALL_DB: dbFile, WHALEFALL_TZ: 'Asia/Shanghai', WHALEFALL_NO_HARVEST: '1' },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 

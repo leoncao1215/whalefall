@@ -18,10 +18,12 @@
  * 环境变量：WHALEFALL_DB（默认 data/whalefall.db）、WHALEFALL_TZ
  */
 import readline from 'node:readline';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.mjs';
 import { callTool, TOOL_DEFINITIONS } from './tools.mjs';
+import { harvestSessions } from './harvest.mjs';
 
 const VERSION = '0.1.0';
 const DEFAULT_PROTOCOL = '2024-11-05';
@@ -45,7 +47,30 @@ function replyError(id, code, message) {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DB_FILE = process.env.WHALEFALL_DB || path.join(ROOT, 'data', 'whalefall.db');
 
+const SESSIONS_ROOT = process.env.WHALEFALL_SESSIONS
+  || path.join(process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'sessions');
+
 let db = null;
+let lastHarvestAt = 0;
+const HARVEST_THROTTLE_MS = 15_000;
+
+/**
+ * 读穿透：查询类工具调用前，先把会话日志的新帧收进来。
+ * 有节流（15 秒一次），文件没变时基本只是一次 stat；失败不影响查询。
+ */
+function freshHarvest() {
+  if (process.env.WHALEFALL_NO_HARVEST === '1') return;
+  const now = Date.now();
+  if (now - lastHarvestAt < HARVEST_THROTTLE_MS) return;
+  lastHarvestAt = now;
+  try {
+    const stats = harvestSessions(getDb(), { root: SESSIONS_ROOT, since: now - 24 * 3600 * 1000 });
+    if (stats.added > 0) log(`read-through harvested ${stats.added} events`);
+  } catch (error) {
+    log(`read-through failed: ${error?.message ?? error}`);
+  }
+}
+
 function getDb() {
   if (!db) {
     db = openDb(DB_FILE);
@@ -82,6 +107,7 @@ const handlers = {
   'tools/call'(params) {
     const name = String(params?.name ?? '');
     const args = params?.arguments ?? {};
+    if (/^memory_(search|timeline|summary|recall)$/.test(name)) freshHarvest();
     const result = callTool(getDb(), name, args, { tz: process.env.WHALEFALL_TZ });
     // MCP 的内容块：文本里放结构化结果，模型两边都能读
     return {

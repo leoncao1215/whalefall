@@ -78,6 +78,7 @@ node src/cli.mjs secret list      # 只显示掩码
 `rollup` 只处理 `events`；`dream` 多一步**采集**——扫 DSH 的会话日志，把对话变成事件，再摘。
 
 ```bash
+node src/cli.mjs harvest --hours 24                   # 只采集（零 token，适合高频跑）
 node src/cli.mjs dream --hours 24 --dry-run          # 先看会归档多少
 node src/cli.mjs dream --hours 24                    # 只归档
 node src/cli.mjs dream --hours 24 --summarizer "node scripts/deepseek-summarize.mjs"
@@ -86,6 +87,8 @@ node src/cli.mjs dream --hours 24 --summarizer "node scripts/deepseek-summarize.
 - 每个 turn 一条事件，`source` 标记来源（`qq` / `web`），检索时可以只查自己的；
 - 过滤掉 runtime 注入与工具调用，只留真正的对话；
 - `dedupeKey = sessionId:turn`，重复跑不会重复写；
+- **增量**：`harvest_state` 记每个文件读到哪个字节，只解新帧；只消费到最后一个 `turn/end`，
+  避免半个 turn 被去重吃掉；
 - 摘要记 `covered_until`，同一天来了新对话会自动重摘；
 - 摘要按来源各切一份（`day/qq`、`day/web`、`day/agent`）+ 一份合并的 `day/all`，
   用 `memory_summary --source qq` 只取自己那份；
