@@ -18,24 +18,37 @@ export function forgetEvent(db, idOrUid, { now = Date.now() } = {}) {
   if (!event) return { deleted: false, reason: 'not-found' };
 
   let staleSummaries = 0;
+  let droppedSummaries = 0;
   db.exec('BEGIN IMMEDIATE');
   try {
-    for (const level of LEVELS) {
-      const result = db
-        .prepare(
-          `UPDATE summaries
-              SET status = 'stale', updated_at = ?
-            WHERE level = ? AND bucket_start <= ? AND bucket_end > ? AND status = 'ready'`,
-        )
-        .run(now, level, event.ts, event.ts);
-      staleSummaries += Number(result.changes);
-    }
     db.prepare('DELETE FROM events WHERE id = ?').run(event.id);
+
+    for (const level of LEVELS) {
+      const rows = db
+        .prepare(
+          `SELECT id, bucket_start, bucket_end FROM summaries
+            WHERE level = ? AND bucket_start <= ? AND bucket_end > ?`,
+        )
+        .all(level, event.ts, event.ts);
+
+      for (const row of rows) {
+        // 派生数据不能比源数据活得久：桶里一条事件都不剩，摘要就该消失。
+        const left = db
+          .prepare('SELECT COUNT(*) AS n FROM events WHERE ts >= ? AND ts < ?')
+          .get(Number(row.bucket_start), Number(row.bucket_end)).n;
+        if (Number(left) === 0) {
+          db.prepare('DELETE FROM summaries WHERE id = ?').run(row.id);
+          droppedSummaries += 1;
+        } else if (db.prepare("UPDATE summaries SET status = 'stale', updated_at = ? WHERE id = ? AND status = 'ready'").run(now, row.id).changes > 0) {
+          staleSummaries += 1;
+        }
+      }
+    }
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
     throw error;
   }
 
-  return { deleted: true, id: event.id, staleSummaries };
+  return { deleted: true, id: event.id, staleSummaries, droppedSummaries };
 }

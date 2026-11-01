@@ -74,6 +74,19 @@ test('单桶失败不影响其它桶', async () => {
   }
 });
 
+test('stale 摘要不会再被 summaryAt 返回', () => {
+  const db = fresh();
+  try {
+    const ts = Date.parse('2026-11-01T12:00:00+08:00');
+    const s = upsertSummary(db, { level: 'day', ts, tz: SH, text: '待作废', sourceCount: 1 });
+    db.prepare("UPDATE summaries SET status = 'stale' WHERE id = ?").run(s.id);
+    assert.equal(summaryAt(db, ts, 'day', { tz: SH }), null);
+    assert.equal(listSummaries(db, { level: 'day', status: 'ready' }).length, 0);
+  } finally {
+    closeDb(db);
+  }
+});
+
 test('summaryAt 能按时刻找到对应层级摘要', () => {
   const db = fresh();
   try {

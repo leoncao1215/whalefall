@@ -87,6 +87,22 @@ test('forget：真删原文 + 摘要标脏 + 可被重新摘要', () => {
   }
 });
 
+test('删掉唯一的源事件后，派生摘要跟着消失（隐私）', () => {
+  const db = openDb(':memory:');
+  try {
+    const { id } = callTool(db, 'memory_remember', { title: '秘密', body: '只有这一条', ts: '2026-11-01 12:30' }, { tz: SH });
+    upsertSummary(db, { level: 'day', ts: DAY + 12 * 3600000, tz: SH, text: '这天有一件秘密', sourceCount: 1 });
+    assert.equal(listSummaries(db, { level: 'day' }).length, 1);
+
+    const out = callTool(db, 'memory_forget', { id }, { tz: SH });
+    assert.equal(out.droppedSummaries, 1);
+    assert.equal(listSummaries(db, { level: 'day' }).length, 0);
+    assert.equal(callTool(db, 'memory_summary', { level: 'day', date: '2026-11-01' }, { tz: SH }).summary, null);
+  } finally {
+    closeDb(db);
+  }
+});
+
 test('timeline 按日期取，且正序', () => {
   const db = openDb(':memory:');
   try {

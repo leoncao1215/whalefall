@@ -69,7 +69,7 @@ export function hydrateSummary(row) {
   };
 }
 
-export function listSummaries(db, { level, from, to, promptVersion, limit = 100 } = {}) {
+export function listSummaries(db, { level, from, to, promptVersion, status, limit = 100 } = {}) {
   const where = [];
   const params = [];
   if (level) {
@@ -88,6 +88,10 @@ export function listSummaries(db, { level, from, to, promptVersion, limit = 100 
     where.push('prompt_version = ?');
     params.push(String(promptVersion));
   }
+  if (status) {
+    where.push('status = ?');
+    params.push(String(status));
+  }
   const sql = `SELECT * FROM summaries
                ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
                ORDER BY bucket_start DESC LIMIT ?`;
@@ -99,9 +103,9 @@ export function listSummaries(db, { level, from, to, promptVersion, limit = 100 
 export function summaryAt(db, ts, level, { promptVersion, tz = DEFAULT_TZ } = {}) {
   const bucket = bucketOf(Number(ts), level, tz);
   const row = promptVersion
-    ? db.prepare('SELECT * FROM summaries WHERE level = ? AND bucket_start = ? AND prompt_version = ?')
+    ? db.prepare("SELECT * FROM summaries WHERE level = ? AND bucket_start = ? AND prompt_version = ? AND status = 'ready'")
       .get(level, bucket.start, promptVersion)
-    : db.prepare('SELECT * FROM summaries WHERE level = ? AND bucket_start = ? ORDER BY updated_at DESC LIMIT 1')
+    : db.prepare("SELECT * FROM summaries WHERE level = ? AND bucket_start = ? AND status = 'ready' ORDER BY updated_at DESC LIMIT 1")
       .get(level, bucket.start);
   return row ? hydrateSummary(row) : null;
 }
