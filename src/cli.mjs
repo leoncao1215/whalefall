@@ -508,13 +508,20 @@ async function main() {
       if (positional[1] === 'record') {
         const text = String(flags.text || positional.slice(2).join(' ') || '').trim();
         if (!text) throw new Error('heartbeat record 需要 --text "<说过的话>"');
-        const id = recordHeartbeat(db, {
+        const out = recordHeartbeat(db, {
           text,
           kind: String(flags.kind || 'proactive'),
           thread: flags.thread != null ? Number(flags.thread) : null,
           now,
+          policy: persona?.policy ?? null,
         });
-        console.log(`已记录 #${id}`);
+        console.log(`已记录 #${out.id}`);
+        console.log(
+          out.nextFollowUpAt == null
+            ? '这条线不追了（到上限）'
+            : `下一次最早：${formatLocal(out.nextFollowUpAt, tz)}`,
+        );
+        if (out.nextFollowUpAt != null) console.log(`nextCheckAt: ${new Date(out.nextFollowUpAt).toISOString()}`);
         return 0;
       }
       const status = heartbeatStatus(db, { persona, now, tz });
@@ -526,6 +533,7 @@ async function main() {
         console.log(`上一条：${formatLocal(p.ts, tz)}（${p.ageMinutes} 分钟前，${p.replied ? '已回' : '没回'}）${p.text}`);
       }
       if (status.lastChat) console.log(`最近对话：${formatLocal(status.lastChat.ts, tz)}  ${status.lastChat.title}`);
+      if (status.busySignal) console.log('信号：老大最近说过"忙/开会/加班"之类的话');
       return 0;
     }
 

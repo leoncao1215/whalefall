@@ -19,8 +19,11 @@
     "minGapMinutes": 120,
     "rule": "看到有意思的东西会想跟老大讲；老大半天不回会不高兴，会再蹭一次；聊天里偶尔岔开话题是正常的，不用一直盯着同一件事。",
     "followUp": {
-      "followUpMinutes": 180,
-      "maxFollowUps": 1,
+      "minMinutes": 5,
+      "maxMinutes": 30,
+      "maxFollowUps": 20,
+      "busyAfter": 5,
+      "busyMinutes": 240,
       "minSilentMinutes": 90
     }
   },

@@ -38,10 +38,28 @@ DSH schedule（0 9-21/2 * * *，Asia/Shanghai；安静时段 23:00-09:00）
 
 `replied` 的判断不靠标记，靠事件：上一条主动消息之后，库里有没有出现新的对话事件。
 
-## 追问不会失控
+## 追问：随机节奏，不是整点打卡
 
-追问（`--kind followup`）会自动挂到上一条线上（`meta.thread`），
-同一根线上 `followUps` 达到 `maxFollowUps` 就不再追——否则每次追问都算新线，会追到天荒地老。
+每发一条主动消息，`recordHeartbeat` 就掷一次骰子，把下一次的时间写进 `meta.nextFollowUpAt`
+（默认 5~30 分钟均匀随机）。所以追问是"突然想起来"，不是"整点报时"。
+
+时间到了要真的能开口，靠的是**按需挂一次性 schedule**：
+
+```
+主动消息发出（schedule 心跳或追问）
+        │  recordHeartbeat → 打印 nextCheckAt
+        ▼
+schedule_create(at = nextCheckAt, prompt = scripts/followup-prompt.md)
+        │  到点执行
+        ▼
+   追问检查：suggest=followup 就说一句 → 记账 → 再挂下一次
+              suggest=hold                → 什么都不说，链自然断掉
+```
+
+- 追问（`--kind followup`）自动挂到同一条线（`meta.thread`），同一根线上数 `followUps`；
+- 追到 `busyAfter`（5）次还没回，间隔拉长到 `busyMinutes`（240 分钟）——相当于承认"他在忙"；
+- 到 `maxFollowUps`（20）次或者老大回了，`nextCheckAt` 变 null，链就停；
+- 老大说过"在忙/开会/加班"之类的话，`heartbeat` 会给出 `busySignal: true`，追问的话会更软更短。
 
 ## 参数（`personas/dafeiyu/policy.json`）
 
@@ -50,16 +68,22 @@ DSH schedule（0 9-21/2 * * *，Asia/Shanghai；安静时段 23:00-09:00）
   "quietHours": ["23:00-09:00"],
   "dailyMax": 3,
   "minGapMinutes": 120,
-  "followUp": { "followUpMinutes": 180, "maxFollowUps": 1, "minSilentMinutes": 90 }
+  "followUp": {
+    "minMinutes": 5, "maxMinutes": 30,
+    "maxFollowUps": 20, "busyAfter": 5, "busyMinutes": 240,
+    "minSilentMinutes": 90
+  }
 }
 ```
 
 | 参数 | 值 | 意思 |
 | --- | --- | --- |
-| `minGapMinutes` | 120 | 两次主动之间至少隔 2 小时 |
-| `dailyMax` | 3 | 一天最多主动 3 次 |
-| `followUpMinutes` | 180 | 上一条没人回，隔 3 小时才允许追 |
-| `maxFollowUps` | 1 | 同一条线最多追一次 |
+| `minGapMinutes` | 120 | 两次**新话题**之间至少隔 2 小时 |
+| `dailyMax` | 3 | 一天最多 3 次**新话题**（追问不算，它有自己的一套） |
+| `minMinutes` / `maxMinutes` | 5 / 30 | 追问间隔随机区间 |
+| `busyAfter` | 5 | 追到第几次开始当作"他在忙" |
+| `busyMinutes` | 240 | 当作忙之后，间隔拉长到 4 小时 |
+| `maxFollowUps` | 20 | 一条线最多追多少次 |
 | `minSilentMinutes` | 90 | 想开新话题，老大得先安静 90 分钟 |
 
 ## 已知的坑
