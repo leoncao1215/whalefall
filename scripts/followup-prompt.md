@@ -17,14 +17,15 @@ cd /root/dsh-plugins/whalefall && node --disable-warning=ExperimentalWarning src
   - busySignal 为 true，或者 followUps 已经 5 次以上 → 他大概真在忙，话要更软、更短，别催；
   - 到 10 次以上 → 可以只说一句「我不吵你了，回头找我」，这条线就收尾。
 
-说完之后记账（把刚发出去的那句原样填进去）：
-cd /root/dsh-plugins/whalefall && node --disable-warning=ExperimentalWarning src/cli.mjs heartbeat record --text "<刚发出去的话>" --kind followup
+说完之后，用这条命令把话**直接发出去**（它自己会记账、写记忆，不依赖插件记录，重启也不影响）：
+cd /root/dsh-plugins/whalefall && node --disable-warning=ExperimentalWarning src/cli.mjs heartbeat say --text "<刚要说的话>" --kind followup
 
 记账会打印 nextCheckAt。如果还有 nextCheckAt，就把下一次追问挂上：
 - 用 schedule_create，at 用那个 ISO 时间，title 写「追问」；
 - prompt 用本文件的内容（cat /root/dsh-plugins/whalefall/scripts/followup-prompt.md 照抄进去）。
 
 铁律：
-- 回复正文就是发给老大的消息本身。不要前言、不要解释、不要步骤、不要 Markdown。
+- 发消息只用 `heartbeat say`；回复正文**不要重复这句话**，什么都不写（留空）。
+- 不要前言、不要解释、不要步骤、不要 Markdown。
 - 不要提记忆、系统、测试、模型、插件。
 - 时间是你自己掷骰子掷出来的，不是整点；别在正文里提「定时」「提醒」。

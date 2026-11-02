@@ -18,6 +18,12 @@ DSH schedule（0 9-21/2 * * *，Asia/Shanghai；安静时段 23:00-09:00）
               whalefall heartbeat record --text "…"
 ```
 
+## 为什么走 say 而不是靠回复
+
+插件发送前会按会话找"回复目标"，而那份记录在 DSH 重启/插件热重载后会丢——
+于是 agent 的回复会静默消失。`heartbeat say` 直接调 QQ API 发送，成功后再记账写事件，
+所以重启也不影响投递。
+
 ## 为什么不让 cron 直接发
 
 | | cron + tick | DSH schedule |

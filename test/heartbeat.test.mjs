@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { openDb, closeDb } from '../src/db.mjs';
 import { addEvent } from '../src/events.mjs';
-import { heartbeatStatus, recordHeartbeat } from '../src/heartbeat.mjs';
+import { heartbeatStatus, recordHeartbeat, sayHeartbeat } from '../src/heartbeat.mjs';
 
 const SH = 'Asia/Shanghai';
 const at = (iso) => Date.parse(iso);
@@ -164,4 +164,31 @@ test('追问不受日限和两小时间隔管，只受自己的次数上限管',
   assert.equal(status.gate.ok, false);
   assert.equal(status.suggest, 'followup');
   closeDb(db);
+});
+
+test('say：发送成功才记账并写事件，失败什么都不留', async () => {
+  const db = openDb(':memory:');
+  try {
+    const ok = await sayHeartbeat(db, {
+      text: '在吗', now: at('2026-11-02T23:00:00+08:00'), tz: SH,
+      policy: POLICY,
+      send: async () => ({ ok: true, id: 'm1' }),
+    });
+    assert.equal(ok.delivery.id, 'm1');
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM proactive_log').get().n, 1);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM events WHERE kind = 'proactive'").get().n, 1);
+    assert.ok(ok.nextFollowUpAt > 0);
+
+    await assert.rejects(
+      () => sayHeartbeat(db, {
+        text: '发不出去', now: at('2026-11-02T23:30:00+08:00'), tz: SH, policy: POLICY,
+        send: async () => ({ ok: false, status: 500, message: 'boom' }),
+      }),
+      /发送失败/,
+    );
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM proactive_log').get().n, 1);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM events WHERE kind = 'proactive'").get().n, 1);
+  } finally {
+    closeDb(db);
+  }
 });

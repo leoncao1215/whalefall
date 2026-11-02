@@ -17,6 +17,7 @@
  * 相当于承认"他在忙"。
  */
 import { evaluateProactive, inQuietHours, proactiveHistory } from './proactive.mjs';
+import { addEvent } from './events.mjs';
 import { DEFAULT_TZ, formatLocal } from './time.mjs';
 
 const DEFAULTS = {
@@ -47,6 +48,33 @@ function pickGap(rules, random = Math.random) {
   const max = Math.max(min, Number(rules.maxMinutes) || DEFAULTS.maxMinutes);
   // 均匀分布就够；不需要更好看的分布，这里只要"不是整点"
   return Math.round(min + random() * (max - min));
+}
+
+/**
+ * 直接发一条主动消息：走 QQ API（不依赖插件记录），成功后再记账、写事件。
+ * 这是"重启也不影响投递"的那条路。
+ */
+export async function sayHeartbeat(db, opts = {}) {
+  const { text, kind = 'proactive', thread = null, now = Date.now(), tz = DEFAULT_TZ, policy = null, send } = opts;
+  if (typeof send !== 'function') throw new Error('sayHeartbeat 需要 send 函数');
+  const delivery = await send(text);
+  if (!delivery?.ok) {
+    throw new Error(`发送失败：HTTP ${delivery?.status ?? '?'} ${delivery?.message ?? delivery?.error ?? ''}`.trim());
+  }
+  const recorded = recordHeartbeat(db, {
+    text, kind, thread, now, policy,
+    delivery: { ok: true, via: 'direct', messageId: delivery.id ?? null },
+  });
+  addEvent(db, {
+    title: '主动消息',
+    body: text,
+    ts: Number(now),
+    tz,
+    source: 'agent',
+    kind: 'proactive',
+    dedupeKey: `proactive:${recorded.id}`,
+  });
+  return { ...recorded, delivery };
 }
 
 /** 用户最后一次说话之后，有没有出现过新的对话事件（= 回过了）。 */
@@ -230,9 +258,9 @@ export function heartbeatStatus(db, opts = {}) {
  * @returns {{id: number, nextFollowUpAt: number|null}}
  */
 export function recordHeartbeat(db, opts = {}) {
-  const { text, kind = 'proactive', thread = null, now = Date.now(), meta = {}, policy = null, random = Math.random } = opts;
+  const { text, kind = 'proactive', thread = null, now = Date.now(), meta = {}, policy = null, random = Math.random, delivery } = opts;
   const rules = rulesOf(policy);
-  const payload = { ...meta, delivery: { ok: true, via: 'dsb-schedule' } };
+  const payload = { ...meta, delivery: delivery ?? { ok: true, via: 'dsb-schedule' } };
 
   // 追问默认挂在"上一条"这条线上；不挂就会自己开新线，永远追不完。
   let root = thread;

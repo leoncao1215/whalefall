@@ -30,7 +30,7 @@ import { renderRecentThreads } from './threads.mjs';
 import { evaluateProactive, proactiveHistory, recordProactiveSend } from './proactive.mjs';
 import { callTool, TOOL_DEFINITIONS } from './tools.mjs';
 import { buildProactivePrompt, createCommandComposer, proactiveTick } from './tick.mjs';
-import { heartbeatStatus, recordHeartbeat } from './heartbeat.mjs';
+import { heartbeatStatus, recordHeartbeat, sayHeartbeat } from './heartbeat.mjs';
 import { planQuery, searchByPlan } from './query.mjs';
 import { deleteSecret, listSecrets, setSecret } from './secrets.mjs';
 import { createCommandResponder, createGateway } from './gateway.mjs';
@@ -58,6 +58,7 @@ const USAGE = `用法：
   whalefall proactive log [--json]
   whalefall heartbeat [--json] [--now <时间>] [--persona <目录>]
   whalefall heartbeat record --text "<说过的话>" [--kind proactive|followup] [--thread <id>]
+  whalefall heartbeat say --text "<要说的话>" [--kind proactive|followup] [--thread <id>]
   whalefall qq whoami | qq send <文本> --yes [--group]
   whalefall verify [--hours <n>] [--source qq,web]
   whalefall reindex --yes [--hours <n>]
@@ -531,6 +532,22 @@ async function main() {
       if (host === '0.0.0.0') console.log('⚠ 正在监听所有网卡：请确保这个端口只在可信局域网内可达');
       console.log('Ctrl+C 退出');
       await new Promise(() => {});
+      return 0;
+    }
+
+    if (command === 'heartbeat' && positional[1] === 'say') {
+      const text = flags.text && flags.text !== true ? String(flags.text) : '';
+      if (!text) throw new Error('heartbeat say 需要 --text "<要说的话>"');
+      const now = parseTime(flags.now) ?? Date.now();
+      const persona = loadPersona(personaDirOf(flags.persona));
+      const out = await sayHeartbeat(db, {
+        text, now, tz, policy: persona.policy,
+        kind: flags.kind && flags.kind !== true ? String(flags.kind) : 'proactive',
+        thread: flags.thread ?? null,
+        send: (content) => sendProactive(content),
+      });
+      console.log(`已发送 #${out.id}（消息 id ${out.delivery.id}）：${text}`);
+      if (out.nextFollowUpAt) console.log(`nextCheckAt: ${new Date(out.nextFollowUpAt).toISOString()}`);
       return 0;
     }
 
