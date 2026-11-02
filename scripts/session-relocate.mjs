@@ -9,7 +9,10 @@
  * 所以默认只复制、不删除原目录，出问题可以回退。
  *
  * 用法：
- *   node scripts/session-relocate.mjs <原会话目录> <新 workspace 绝对路径>
+ *   node scripts/session-relocate.mjs <原会话目录> <新 workspace 绝对路径> [--move]
+ *
+ * 默认复制（原目录保留，出问题可回退）；--move 表示搬走并删掉原目录，
+ * 避免同一个 session id 在两个 cwd 下各有一份。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,7 +34,8 @@ export function escapeCwd(cwd) {
 }
 
 function main() {
-  const [srcDir, newCwd] = process.argv.slice(2);
+  const [srcDir, newCwd] = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
+  const move = process.argv.includes('--move');
   if (!srcDir || !newCwd) {
     console.error('用法：node scripts/session-relocate.mjs <原会话目录> <新 workspace 绝对路径>');
     process.exit(1);
@@ -70,9 +74,15 @@ function main() {
     else fs.copyFileSync(from, to);
   }
 
-  console.log(`会话已复制到：${targetDir}`);
+  if (move) {
+    fs.rmSync(srcDir, { recursive: true, force: true });
+    console.log(`会话已搬到：${targetDir}`);
+    console.log('原目录已删除（--move）。');
+  } else {
+    console.log(`会话已复制到：${targetDir}`);
+    console.log('原会话目录保持不动（出问题可回退）。');
+  }
   console.log(`新 cwd：${newCwd}`);
-  console.log('原会话目录保持不动（出问题可回退）。');
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {

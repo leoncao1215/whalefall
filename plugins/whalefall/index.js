@@ -7,6 +7,7 @@
  *
  * 作用范围：cwd 等于个体目录的会话。工作会话不受影响。
  */
+import fs from 'node:fs';
 import path from 'node:path';
 import { resolveInstance } from '../../src/instance.mjs';
 import { loadPersona, renderPersona } from '../../src/persona.mjs';
@@ -29,7 +30,18 @@ export function apply(ctx, config = {}) {
 
   let db = null;
   const getDb = () => (db ??= openDb(instance.db));
-  const sameDir = (a, b) => path.resolve(String(a)) === path.resolve(String(b));
+  // 允许软链与子目录：只要落在个体目录里，就算“她”
+  const inInstance = (cwd) => {
+    const target = path.resolve(String(cwd));
+    const root = path.resolve(instance.dir);
+    try {
+      const realTarget = fs.realpathSync(target);
+      const realRoot = fs.realpathSync(root);
+      return realTarget === realRoot || realTarget.startsWith(`${realRoot}${path.sep}`);
+    } catch {
+      return target === root || target.startsWith(`${root}${path.sep}`);
+    }
+  };
 
   const assemble = async (assembly, context, next) => {
     const assembled = await next();
@@ -38,7 +50,7 @@ export function apply(ctx, config = {}) {
 
     // 只认"工作目录就是个体目录"的会话
     const cwd = agent.session?.cwd;
-    if (!cwd || !sameDir(cwd, instance.dir)) return assembled;
+    if (!cwd || !inInstance(cwd)) return assembled;
 
     let persona;
     try {
