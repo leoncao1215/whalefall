@@ -50,11 +50,15 @@ function pickGap(rules, random = Math.random) {
 }
 
 /** 用户最后一次说话之后，有没有出现过新的对话事件（= 回过了）。 */
+// 采集会把"我自己主动说的那句"也记成一条 qq/conversation 事件（正文以「助手：」开头）。
+// 那不是老大在说话，算进 replied 和 lastUserAt 会让追问链自己骗自己。
+const NOT_ASSISTANT = "body NOT LIKE '助手：%' AND body NOT LIKE '助手:%'";
+
 function repliedAfter(db, ts) {
   const row = db
     .prepare(
       `SELECT ts FROM events
-        WHERE ts > ? AND kind != 'proactive' AND source != 'agent'
+        WHERE ts > ? AND kind != 'proactive' AND source != 'agent' AND ${NOT_ASSISTANT}
         ORDER BY ts ASC LIMIT 1`,
     )
     .get(Number(ts));
@@ -66,7 +70,7 @@ function lastUserEvent(db) {
     db
       .prepare(
         `SELECT ts, title, body FROM events
-          WHERE kind != 'proactive' AND source != 'agent'
+          WHERE kind != 'proactive' AND source != 'agent' AND ${NOT_ASSISTANT}
           ORDER BY ts DESC LIMIT 1`,
       )
       .get() ?? null
@@ -85,7 +89,7 @@ function busySignal(db, now) {
   const rows = db
     .prepare(
       `SELECT title FROM events
-        WHERE ts > ? AND kind != 'proactive' AND source != 'agent'
+        WHERE ts > ? AND kind != 'proactive' AND source != 'agent' AND ${NOT_ASSISTANT}
         ORDER BY ts DESC LIMIT 20`,
     )
     .all(now - 12 * 3600 * 1000);
