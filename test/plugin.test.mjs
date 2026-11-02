@@ -35,7 +35,7 @@ test('cwd 是个体目录：注入人格', async () => {
   try {
     const out = await assemble(
       { sections: [] },
-      { agent: { id: 's1', session: { cwd: instance.dir } } },
+      { agent: { id: 's1', session: { header: { cwd: instance.dir } } } },
       async () => ({ sections: [] }),
     );
     const section = out.sections.find((item) => item.name === 'whalefall:persona');
@@ -52,7 +52,7 @@ test('cwd 不是个体目录：原样返回，不干扰工作会话', async () =
   try {
     const out = await assemble(
       { sections: [{ name: 'base', text: 'base' }] },
-      { agent: { id: 's2', session: { cwd: '/tmp/elsewhere' } } },
+      { agent: { id: 's2', session: { header: { cwd: '/tmp/elsewhere' } } } },
       async () => ({ sections: [{ name: 'base', text: 'base' }] }),
     );
     assert.equal(out.sections.length, 1);
@@ -78,7 +78,7 @@ test('人格包坏了就退回默认，不拖垮会话', async () => {
     fs.rmSync(path.join(instance.personaDir, 'persona.json'));
     const out = await assemble(
       { sections: [] },
-      { agent: { id: 's3', session: { cwd: instance.dir } } },
+      { agent: { id: 's3', session: { header: { cwd: instance.dir } } } },
       async () => ({ sections: [] }),
     );
     assert.equal(out.sections.length, 0);

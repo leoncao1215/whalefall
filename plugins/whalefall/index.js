@@ -56,7 +56,8 @@ export function apply(ctx, config = {}) {
     if (!agent) return assembled;
 
     // 只认"工作目录就是个体目录"的会话
-    const cwd = agent.session?.cwd;
+    // cwd 在 session.header 上，不在 session 本身（踩过一次）
+    const cwd = agent.session?.header?.cwd ?? agent.session?.cwd;
     debug(`assemble agent=${agent.id} cwd=${cwd} match=${cwd ? inInstance(cwd) : false}`);
     if (!cwd || !inInstance(cwd)) return assembled;
 
