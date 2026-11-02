@@ -28,13 +28,6 @@ export function apply(ctx, config = {}) {
   const recentLimit = Number(settings.recentLimit) || 8;
   const tz = settings.tz || process.env.WHALEFALL_TZ || 'Asia/Shanghai';
 
-  // 临时诊断：把加载/注入情况写到个体目录，方便确认插件到底跑没跑
-  const debugFile = path.join(instance.dir, 'growth', 'plugin.log');
-  const debug = (line) => {
-    try { fs.appendFileSync(debugFile, `${new Date().toISOString()} ${line}\n`); } catch { /* 诊断失败不影响主流程 */ }
-  };
-  debug(`apply instance=${instance.id} dir=${instance.dir} persona=${instance.personaDir}`);
-
   let db = null;
   const getDb = () => (db ??= openDb(instance.db));
   // 允许软链与子目录：只要落在个体目录里，就算“她”
@@ -58,14 +51,12 @@ export function apply(ctx, config = {}) {
     // 只认"工作目录就是个体目录"的会话
     // cwd 在 session.header 上，不在 session 本身（踩过一次）
     const cwd = agent.session?.header?.cwd ?? agent.session?.cwd;
-    debug(`assemble agent=${agent.id} cwd=${cwd} match=${cwd ? inInstance(cwd) : false}`);
     if (!cwd || !inInstance(cwd)) return assembled;
 
     let persona;
     try {
       persona = loadPersona(instance.personaDir);
-    } catch (error) {
-      debug(`persona load failed: ${error?.message ?? error}`);
+    } catch {
       return assembled; // 人格包坏了就退回默认，不拖垮会话
     }
 
