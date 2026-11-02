@@ -1,0 +1,5 @@
+- insert:
+    - id: whalefall-persona
+      name: whalefall-dsh-plugin
+      config:
+        instance: dafeiyu

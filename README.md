@@ -228,6 +228,17 @@ scripts/           同步/适配脚本（QQ 人格、DeepSeek 摘要）
 test/              node:test
 ```
 
+## DSH 插件
+
+`plugins/whalefall/` 把个体接进 DSH：每轮注入人格与 `<recent>` 跨渠道上下文，
+只对 cwd 等于个体目录的会话生效。装法：
+
+```json
+// profile package.json
+"dependencies": { "whalefall-dsh-plugin": "link:/path/to/whalefall/plugins/whalefall" },
+"dsh": { "profile": { "bundles": ["...", "whalefall-dsh-plugin"] } }
+```
+
 ## 基建与个体
 
 whalefall 是引擎；"某个存在"是它上面的一份实例，默认住在 `~/.whalefall/instances/<id>/`
